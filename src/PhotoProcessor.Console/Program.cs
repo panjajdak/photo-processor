@@ -40,11 +40,12 @@ internal class Program
                     return;
             }
 
-            config.InputDirectory = inputDirectory;
-            config.OutputDirectory = outputDirectory;
-
             DirectoryProcessor dp = new DirectoryProcessor(config, new ConsoleLog());
-            dp.Process(inputDirectory, outputDirectory);
+            ProcessingSummary summary = dp.Process(inputDirectory, outputDirectory);
+
+            System.Console.WriteLine(
+                $"Done. Renamed: {summary.Renamed}, already named: {summary.AlreadyNamed}, duplicates: {summary.Duplicates}, " +
+                $"unsupported: {summary.Unsupported}, failed: {summary.Failed}");
         }
         catch (Exception ex)
         {

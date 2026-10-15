@@ -3,6 +3,11 @@
     "Delimiter": " ",
     "ImagePrefix": "IMG",
     "VideoPrefix": "VID",
+    "TimeZone": "",
+    "LocalTimeVideoPatterns": [
+        "^GOPR\\d{4}\\.",
+        "^G[HXLP]\\d{6}\\."
+    ],
     "Options": {
         "CopyingEnabled": false
     },
