@@ -53,6 +53,41 @@ public sealed class MetadataExtractorReaderTests : IDisposable
     }
 
     [Theory]
+    [InlineData("raw.dng")]
+    [InlineData("raw.nef")]
+    [InlineData("raw.arw")]
+    public void ReadsExifFromTiffBasedRaw(string fileName)
+    {
+        var path = temp.Write(fileName, TestMedia.Tiff(model: "SM-G990B", dateTimeOriginal: new DateTime(2022, 11, 13, 13, 50, 22)));
+
+        var metadata = reader.Read(path);
+
+        Assert.Equal(new DateTime(2022, 11, 13, 13, 50, 22), metadata.DateTimeOriginal);
+        Assert.Equal("SM-G990B", metadata.Model);
+    }
+
+    [Fact]
+    public void ReadsExifFromWebP()
+    {
+        var path = temp.Write("photo.webp", TestMedia.WebP(model: "Pixel 7", dateTimeOriginal: new DateTime(2023, 5, 1, 8, 0, 0)));
+
+        var metadata = reader.Read(path);
+
+        Assert.Equal(new DateTime(2023, 5, 1, 8, 0, 0), metadata.DateTimeOriginal);
+        Assert.Equal("Pixel 7", metadata.Model);
+    }
+
+    [Fact]
+    public void ReadsMovieHeaderFromMov()
+    {
+        var path = temp.Write("clip.mov", TestMedia.Mov(new DateTime(2021, 4, 8, 17, 41, 8)));
+
+        var metadata = reader.Read(path);
+
+        Assert.Equal(new DateTime(2021, 4, 8, 17, 41, 8), metadata.QuickTimeCreated);
+    }
+
+    [Theory]
     [InlineData("2021-04-08T19:41:08+0200", 2)]
     [InlineData("2021-04-08T19:41:08+02:00", 2)]
     [InlineData("2021-04-08T19:41:08-0430", -4.5)]

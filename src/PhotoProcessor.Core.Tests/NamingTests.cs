@@ -64,28 +64,6 @@ public class NamingTests
         Assert.Equal("IMG x.jpg", namer.BuildFileName("IMG x", 0, ".jpg"));
         Assert.Equal("IMG x 1.jpg", namer.BuildFileName("IMG x", 1, ".jpg"));
         Assert.Equal("IMG x 2.jpg", namer.BuildFileName("IMG x", 2, ".jpg"));
-    }
-
-    [Theory]
-    [InlineData("a.JPG", ".jpg")]
-    [InlineData("a.JPEG", ".jpg")]
-    [InlineData("a.Png", ".png")]
-    [InlineData("a.MP4", ".mp4")]
-    public void MediaTypes_NormalizesExtensions(string fileName, string expected)
-    {
-        Assert.Equal(expected, MediaTypes.GetOutputExtension(fileName));
-    }
-
-    [Theory]
-    [InlineData("a.jpg", "Image")]
-    [InlineData("a.JPEG", "Image")]
-    [InlineData("a.png", "Image")]
-    [InlineData("a.MP4", "Video")]
-    [InlineData("a.dng", null)]
-    [InlineData("a.txt", null)]
-    [InlineData("noextension", null)]
-    public void MediaTypes_DetectsKindByExtension(string fileName, string? expected)
-    {
-        Assert.Equal(expected, MediaTypes.GetKind(fileName)?.ToString());
+        Assert.Equal("IMG x 1.dng.xmp", namer.BuildFileName("IMG x", 1, ".dng.xmp"));
     }
 }

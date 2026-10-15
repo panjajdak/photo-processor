@@ -4,7 +4,7 @@ using System.Buffers.Binary;
 using System.Text;
 
 /// <summary>
-/// Builds minimal but valid JPEG and MP4 files carrying just the metadata the tests need.
+/// Builds minimal but valid JPEG, TIFF/DNG, WebP, MP4 and MOV files carrying just the metadata the tests need.
 /// </summary>
 internal static class TestMedia
 {
@@ -19,17 +19,7 @@ internal static class TestMedia
         DateTime? dateTimeDigitized = null,
         string? subSecondOriginal = null)
     {
-        var ifd0 = new List<(ushort Tag, ushort Type, byte[] Data)>();
-        if (make != null) ifd0.Add((0x010F, TypeAscii, Ascii(make)));
-        if (model != null) ifd0.Add((0x0110, TypeAscii, Ascii(model)));
-        if (dateTime != null) ifd0.Add((0x0132, TypeAscii, ExifDate(dateTime.Value)));
-
-        var subIfd = new List<(ushort Tag, ushort Type, byte[] Data)>();
-        if (dateTimeOriginal != null) subIfd.Add((0x9003, TypeAscii, ExifDate(dateTimeOriginal.Value)));
-        if (dateTimeDigitized != null) subIfd.Add((0x9004, TypeAscii, ExifDate(dateTimeDigitized.Value)));
-        if (subSecondOriginal != null) subIfd.Add((0x9291, TypeAscii, Ascii(subSecondOriginal)));
-
-        var tiff = Tiff(ifd0, subIfd);
+        var tiff = Exif(make, model, dateTime, dateTimeOriginal, dateTimeDigitized, subSecondOriginal);
 
         using var jpeg = new MemoryStream();
         jpeg.Write([0xFF, 0xD8, 0xFF, 0xE1]);
@@ -40,8 +30,43 @@ internal static class TestMedia
         return jpeg.ToArray();
     }
 
+    /// <summary>
+    /// A bare TIFF with EXIF, which is what DNG, NEF, ARW and other TIFF-based RAW files look like to a metadata reader.
+    /// </summary>
+    public static byte[] Tiff(string? model = null, DateTime? dateTimeOriginal = null)
+        => Exif(null, model, null, dateTimeOriginal, null, null);
+
+    public static byte[] WebP(string? model = null, DateTime? dateTimeOriginal = null)
+    {
+        var exif = Exif(null, model, null, dateTimeOriginal, null, null);
+
+        var vp8x = new byte[10];
+        vp8x[0] = 0x08; // EXIF present
+
+        byte[] chunks = [.. Chunk("VP8X", vp8x), .. Chunk("EXIF", exif)];
+        var riff = new byte[12];
+        Encoding.ASCII.GetBytes("RIFF", riff);
+        BinaryPrimitives.WriteUInt32LittleEndian(riff.AsSpan(4), (uint)(4 + chunks.Length));
+        Encoding.ASCII.GetBytes("WEBP", riff.AsSpan(8));
+        return [.. riff, .. chunks];
+
+        static byte[] Chunk(string type, byte[] payload)
+        {
+            var chunk = new byte[8 + payload.Length + (payload.Length % 2)];
+            Encoding.ASCII.GetBytes(type, chunk);
+            BinaryPrimitives.WriteUInt32LittleEndian(chunk.AsSpan(4), (uint)payload.Length);
+            payload.CopyTo(chunk, 8);
+            return chunk;
+        }
+    }
+
+    /// <summary>QuickTime (.mov) file; same layout as <see cref="Mp4"/> with the QuickTime brand.</summary>
+    public static byte[] Mov(DateTime created) => Mp4(created, "qt  ");
+
     /// <summary>MP4 whose movie header creation time is <paramref name="created"/> (seconds since 1904, as stored).</summary>
-    public static byte[] Mp4(DateTime created)
+    public static byte[] Mp4(DateTime created) => Mp4(created, "isom");
+
+    private static byte[] Mp4(DateTime created, string brand)
     {
         var seconds = (uint)(created - new DateTime(1904, 1, 1)).TotalSeconds;
 
@@ -57,8 +82,23 @@ internal static class TestMedia
         BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(96), 1);        // next track id
 
         var mvhdBox = Box("mvhd", mvhd);
-        var ftyp = Box("ftyp", [.. "isom"u8, 0, 0, 2, 0, .. "isommp41"u8]);
+        var ftyp = Box("ftyp", [.. Encoding.ASCII.GetBytes(brand), 0, 0, 2, 0, .. Encoding.ASCII.GetBytes(brand)]);
         return [.. ftyp, .. Box("moov", mvhdBox)];
+    }
+
+    private static byte[] Exif(string? make, string? model, DateTime? dateTime, DateTime? dateTimeOriginal, DateTime? dateTimeDigitized, string? subSecondOriginal)
+    {
+        var ifd0 = new List<(ushort Tag, ushort Type, byte[] Data)>();
+        if (make != null) ifd0.Add((0x010F, TypeAscii, Ascii(make)));
+        if (model != null) ifd0.Add((0x0110, TypeAscii, Ascii(model)));
+        if (dateTime != null) ifd0.Add((0x0132, TypeAscii, ExifDate(dateTime.Value)));
+
+        var subIfd = new List<(ushort Tag, ushort Type, byte[] Data)>();
+        if (dateTimeOriginal != null) subIfd.Add((0x9003, TypeAscii, ExifDate(dateTimeOriginal.Value)));
+        if (dateTimeDigitized != null) subIfd.Add((0x9004, TypeAscii, ExifDate(dateTimeDigitized.Value)));
+        if (subSecondOriginal != null) subIfd.Add((0x9291, TypeAscii, Ascii(subSecondOriginal)));
+
+        return Tiff(ifd0, subIfd);
     }
 
     private static byte[] Box(string type, byte[] payload)

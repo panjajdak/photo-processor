@@ -12,6 +12,9 @@ using PhotoProcessor.Core.Metadata;
 using PhotoProcessor.Core.Naming;
 using PhotoProcessor.Core.Resolvers;
 
+/// <summary>
+/// Counts of files (not groups) by outcome.
+/// </summary>
 public sealed record ProcessingSummary(int Renamed, int AlreadyNamed, int Duplicates, int Unsupported, int Failed);
 
 public class DirectoryProcessor
@@ -43,140 +46,199 @@ public class DirectoryProcessor
         outputDirectory = Path.GetFullPath(outputDirectory);
         Directory.CreateDirectory(outputDirectory);
 
-        int renamed = 0, alreadyNamed = 0, duplicates = 0, unsupported = 0, failed = 0;
-        var planned = new List<PlannedFile>();
+        var counts = new Counts();
+        var planned = new List<PlannedGroup>();
+        var supported = new List<string>();
 
         foreach (var path in Directory.GetFiles(inputDirectory).Order(StringComparer.OrdinalIgnoreCase))
         {
-            if (MediaTypes.GetKind(path) is not { } kind)
+            if (MediaTypes.GetKind(path) != null || MediaTypes.IsSidecar(path))
             {
-                log.LogMessage($"Skipped (unsupported type): {path}");
-                unsupported++;
+                supported.Add(path);
+                continue;
+            }
+
+            log.LogMessage($"Skipped (unsupported type): {path}");
+            counts.Unsupported++;
+        }
+
+        // A photo, its RAW/Live Photo companions and its sidecars share a stem and are renamed together.
+        foreach (var group in supported.GroupBy(MediaTypes.GetStem, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!group.Any(path => MediaTypes.GetKind(path) != null))
+            {
+                foreach (var path in group)
+                {
+                    log.LogMessage($"Skipped (sidecar without media file): {path}");
+                    counts.Unsupported++;
+                }
+
                 continue;
             }
 
             try
             {
-                planned.Add(Plan(path, kind));
+                planned.Add(Plan(group.ToList()));
             }
             catch (Exception ex)
             {
-                log.LogMessage($"Failed: {path}");
+                log.LogMessage($"Failed: {string.Join(", ", group)}");
                 log.LogError(ex);
-                failed++;
+                counts.Failed += group.Count();
             }
         }
 
-        // Files that end up with the same name are numbered in shooting order, so results don't depend on directory listing order.
+        // Groups that end up with the same name are numbered in shooting order, so results don't depend on directory listing order.
         var ordered = planned
-            .OrderBy(f => f.Date.Value)
-            .ThenBy(f => f.SubSecondSortKey, StringComparer.Ordinal)
-            .ThenBy(f => Path.GetFileName(f.SourcePath), StringComparer.OrdinalIgnoreCase);
+            .OrderBy(g => g.Date.Value)
+            .ThenBy(g => g.SubSecondSortKey, StringComparer.Ordinal)
+            .ThenBy(g => g.Stem, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var file in ordered)
+        foreach (var group in ordered)
         {
             try
             {
-                switch (Execute(file, outputDirectory))
-                {
-                    case Outcome.Renamed: renamed++; break;
-                    case Outcome.AlreadyNamed: alreadyNamed++; break;
-                    case Outcome.Duplicate: duplicates++; break;
-                }
+                Execute(group, outputDirectory, counts);
             }
             catch (Exception ex)
             {
-                log.LogMessage($"Failed: {file.SourcePath}");
+                log.LogMessage($"Failed: {string.Join(", ", group.Members.Select(m => m.SourcePath))}");
                 log.LogError(ex);
-                failed++;
+                counts.Failed += group.Members.Count(m => File.Exists(m.SourcePath));
             }
         }
 
-        return new ProcessingSummary(renamed, alreadyNamed, duplicates, unsupported, failed);
+        return new ProcessingSummary(counts.Renamed, counts.AlreadyNamed, counts.Duplicates, counts.Unsupported, counts.Failed);
     }
 
-    private PlannedFile Plan(string path, MediaKind kind)
+    private PlannedGroup Plan(IReadOnlyList<string> paths)
     {
-        var fileName = Path.GetFileName(path);
-        MediaMetadata metadata;
+        var media = paths
+            .Where(path => MediaTypes.GetKind(path) != null)
+            .Select(path => (Path: path, Kind: MediaTypes.GetKind(path)!.Value, Metadata: ReadMetadata(path)))
+            .Select(m => (m.Path, m.Kind, m.Metadata, Date: dateResolver.Resolve(m.Kind, m.Metadata, Path.GetFileName(m.Path), File.GetLastWriteTime(m.Path))))
+            .ToList();
 
+        // The best-dated file names the group; a Live Photo or RAW+JPEG pair is named as an image.
+        var primary = media
+            .OrderBy(m => m.Date.Source)
+            .ThenBy(m => m.Kind)
+            .ThenBy(m => m.Path, StringComparer.OrdinalIgnoreCase)
+            .First();
+        var kind = media.Any(m => m.Kind == MediaKind.Image) ? MediaKind.Image : MediaKind.Video;
+        var model = primary.Metadata.Model ?? media.Select(m => m.Metadata.Model).FirstOrDefault(m => m != null);
+        var baseName = namer.BuildBaseName(kind, primary.Date.Value, deviceResolver.Resolve(model));
+
+        var members = paths
+            .Select(path => new PlannedMember(path, MediaTypes.GetOutputExtension(path)))
+            .ToList();
+
+        if (members.GroupBy(m => m.Extension).Any(g => g.Count() > 1))
+        {
+            throw new InvalidOperationException("Several files in the group would get the same name.");
+        }
+
+        return new PlannedGroup(MediaTypes.GetStem(paths[0]), members, baseName, primary.Date, SubSecondSortKey(primary.Metadata.SubSecondOriginal));
+    }
+
+    private MediaMetadata ReadMetadata(string path)
+    {
         try
         {
-            metadata = metadataReader.Read(path);
+            return metadataReader.Read(path);
         }
         catch (Exception ex)
         {
             // Unreadable metadata still leaves the file name and file time to date the file.
             log.LogMessage($"Warning: could not read metadata of {path}: {ex.Message}");
-            metadata = MediaMetadata.Empty;
+            return MediaMetadata.Empty;
         }
-
-        var date = dateResolver.Resolve(kind, metadata, fileName, File.GetLastWriteTime(path));
-        var device = deviceResolver.Resolve(metadata.Model);
-        var baseName = namer.BuildBaseName(kind, date.Value, device);
-
-        return new PlannedFile(path, baseName, MediaTypes.GetOutputExtension(path), date, SubSecondSortKey(metadata.SubSecondOriginal));
     }
 
-    private Outcome Execute(PlannedFile file, string outputDirectory)
+    private void Execute(PlannedGroup group, string outputDirectory, Counts counts)
     {
-        var sourceDirectory = Path.GetDirectoryName(file.SourcePath)!;
-        if (PathsEqual(sourceDirectory, outputDirectory) && HasTargetName(Path.GetFileName(file.SourcePath), file))
+        var sourceDirectory = Path.GetDirectoryName(group.Members[0].SourcePath)!;
+        if (PathsEqual(sourceDirectory, outputDirectory) && HasTargetName(group.Stem, group.BaseName))
         {
-            return Outcome.AlreadyNamed;
+            counts.AlreadyNamed += group.Members.Count;
+            return;
         }
 
         for (var index = 0; ; index++)
         {
-            var target = Path.Combine(outputDirectory, namer.BuildFileName(file.BaseName, index, file.Extension));
+            var targets = group.Members
+                .Select(m => (Member: m, Target: Path.Combine(outputDirectory, namer.BuildFileName(group.BaseName, index, m.Extension))))
+                .ToList();
 
-            if (PathsEqual(target, file.SourcePath))
+            var states = targets.Select(t => GetTargetState(t.Member.SourcePath, t.Target)).ToList();
+
+            if (states.Contains(TargetState.Taken))
             {
-                return Outcome.AlreadyNamed;
-            }
-
-            if (File.Exists(target))
-            {
-                if (FilesAreIdentical(file.SourcePath, target))
-                {
-                    log.LogMessage($"Duplicate of {target}, left in place: {file.SourcePath}");
-                    return Outcome.Duplicate;
-                }
-
                 continue;
             }
 
-            if (config.Options.CopyingEnabled)
+            for (var i = 0; i < targets.Count; i++)
             {
-                File.Copy(file.SourcePath, target);
-            }
-            else
-            {
-                File.Move(file.SourcePath, target);
+                var (member, target) = targets[i];
+                switch (states[i])
+                {
+                    case TargetState.Self:
+                        counts.AlreadyNamed++;
+                        break;
+                    case TargetState.Identical:
+                        log.LogMessage($"Duplicate of {target}, left in place: {member.SourcePath}");
+                        counts.Duplicates++;
+                        break;
+                    case TargetState.Free:
+                        Transfer(member.SourcePath, target);
+                        log.LogMessage($"{Path.GetFileName(member.SourcePath)} -> {Path.GetFileName(target)} [{group.Date.Source}]");
+                        counts.Renamed++;
+                        break;
+                }
             }
 
-            log.LogMessage($"{Path.GetFileName(file.SourcePath)} -> {Path.GetFileName(target)} [{file.Date.Source}]");
-            return Outcome.Renamed;
+            return;
+        }
+    }
+
+    private static TargetState GetTargetState(string source, string target)
+    {
+        if (PathsEqual(source, target))
+        {
+            return TargetState.Self;
+        }
+
+        if (!File.Exists(target))
+        {
+            return TargetState.Free;
+        }
+
+        return FilesAreIdentical(source, target) ? TargetState.Identical : TargetState.Taken;
+    }
+
+    private void Transfer(string source, string target)
+    {
+        if (config.Options.CopyingEnabled)
+        {
+            File.Copy(source, target);
+        }
+        else
+        {
+            File.Move(source, target);
         }
     }
 
     /// <summary>
-    /// True when the file already carries the name this run would give it, with or without a counter.
+    /// True when the stem already is the name this run would give the group, with or without a counter.
     /// </summary>
-    private bool HasTargetName(string fileName, PlannedFile file)
+    private bool HasTargetName(string stem, string baseName)
     {
-        if (!fileName.EndsWith(file.Extension, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var stem = fileName[..^file.Extension.Length];
-        if (stem.Equals(file.BaseName, StringComparison.OrdinalIgnoreCase))
+        if (stem.Equals(baseName, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        var counterPrefix = file.BaseName + config.Delimiter;
+        var counterPrefix = baseName + config.Delimiter;
         return stem.StartsWith(counterPrefix, StringComparison.OrdinalIgnoreCase)
             && stem.Length > counterPrefix.Length
             && stem[counterPrefix.Length..].All(char.IsAsciiDigit);
@@ -220,12 +282,27 @@ public class DirectoryProcessor
     private static string SubSecondSortKey(string? subSecond)
         => subSecond != null && subSecond.All(char.IsAsciiDigit) ? subSecond.PadRight(9, '0') : "";
 
-    private enum Outcome
+    private enum TargetState
     {
-        Renamed,
-        AlreadyNamed,
-        Duplicate,
+        /// <summary>The file already is at the target.</summary>
+        Self,
+        Free,
+        /// <summary>A byte-identical copy is at the target.</summary>
+        Identical,
+        /// <summary>A different file is at the target.</summary>
+        Taken,
     }
 
-    private sealed record PlannedFile(string SourcePath, string BaseName, string Extension, ResolvedDate Date, string SubSecondSortKey);
+    private sealed class Counts
+    {
+        public int Renamed;
+        public int AlreadyNamed;
+        public int Duplicates;
+        public int Unsupported;
+        public int Failed;
+    }
+
+    private sealed record PlannedMember(string SourcePath, string Extension);
+
+    private sealed record PlannedGroup(string Stem, IReadOnlyList<PlannedMember> Members, string BaseName, ResolvedDate Date, string SubSecondSortKey);
 }

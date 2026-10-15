@@ -8,15 +8,18 @@ using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Media;
 using PhotoProcessor.Core.Metadata;
 
+/// <summary>
+/// Where a date came from, ordered from most to least trustworthy.
+/// </summary>
 internal enum DateSource
 {
     ExifOriginal,
-    ExifDigitized,
-    ExifModified,
     QuickTimeCreationDate,
+    ExifDigitized,
     QuickTimeUtc,
     QuickTimeLocal,
     FileName,
+    ExifModified,
     FileNameDateOnly,
     FileModified,
 }
