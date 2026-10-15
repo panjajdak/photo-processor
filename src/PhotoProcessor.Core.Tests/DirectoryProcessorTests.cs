@@ -1,6 +1,5 @@
 namespace PhotoProcessor.Core.Tests;
 
-using PhotoProcessor.Core.Abstractions;
 using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Tests.Support;
 
@@ -315,12 +314,5 @@ public sealed class DirectoryProcessorTests : IDisposable
     }
 
     private ProcessingSummary Process(string inputDirectory, string outputDirectory)
-        => new DirectoryProcessor(config, new NullLog()).Process(inputDirectory, outputDirectory);
-
-    private sealed class NullLog : ILog
-    {
-        public void LogError(Exception ex) { }
-
-        public void LogMessage(string message) { }
-    }
+        => new DirectoryProcessor(config, new TestLog()).Process(inputDirectory, outputDirectory).Summary;
 }

@@ -1,6 +1,7 @@
 {
-    "DateFormat": "yyyy-MM-dd HH.mm.ss",
-    "Delimiter": " ",
+    "InputDirectory": "\\\\CARP\\photos\\_pipeline\\in",
+    "OutputDirectory": "\\\\CARP\\photos\\_pipeline\\out",
+    "FileNameTemplate": "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]",
     "ImagePrefix": "IMG",
     "VideoPrefix": "VID",
     "TimeZone": "",

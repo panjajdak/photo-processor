@@ -1,11 +1,25 @@
 namespace PhotoProcessor.Core.Config;
 
 using System.Collections.Generic;
+using PhotoProcessor.Core.Naming;
 
 public class Configuration
 {
-    public string DateFormat { get; set; } = "yyyy-MM-dd HH.mm.ss";
-    public string Delimiter { get; set; } = " ";
+    /// <summary>
+    /// Input directory used when none is given on the command line.
+    /// </summary>
+    public string? InputDirectory { get; set; }
+
+    /// <summary>
+    /// Output directory used when none is given on the command line. Defaults to the input directory.
+    /// </summary>
+    public string? OutputDirectory { get; set; }
+
+    /// <summary>
+    /// File name pattern; see README for tokens. Example: "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]".
+    /// </summary>
+    public string FileNameTemplate { get; set; } = Naming.FileNameTemplate.Default;
+
     public string ImagePrefix { get; set; } = "IMG";
     public string VideoPrefix { get; set; } = "VID";
 
