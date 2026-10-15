@@ -146,13 +146,161 @@ public sealed class DirectoryProcessorTests : IDisposable
     [Fact]
     public void UnsupportedFiles_AreCountedAndLeftAlone()
     {
-        input.Write("20221113_135022.dng", [1, 2, 3]);
+        input.Write("GL013592.LRV", [1, 2, 3]);
         input.Write("notes.txt", [1, 2, 3]);
 
         var summary = Process(input.Path, output.Path);
 
         Assert.Equal(new ProcessingSummary(0, 0, 0, 2, 0), summary);
-        Assert.Equal(["20221113_135022.dng", "notes.txt"], input.FileNames());
+        Assert.Equal(["GL013592.LRV", "notes.txt"], input.FileNames());
+    }
+
+    [Fact]
+    public void RenamesRawFiles()
+    {
+        input.Write("20221113_135022.dng", TestMedia.Tiff(model: "SM-G990B", dateTimeOriginal: new DateTime(2022, 11, 13, 13, 50, 22)));
+
+        Process(input.Path, output.Path);
+
+        Assert.Equal(["IMG 2022-11-13 13.50.22 SM-G990B.dng"], output.FileNames());
+    }
+
+    [Fact]
+    public void RawAndJpegPair_GetTheSameName()
+    {
+        var taken = new DateTime(2022, 11, 13, 13, 50, 22);
+        input.Write("DSC_0042.NEF", TestMedia.Tiff(model: "SM-A415F", dateTimeOriginal: taken));
+        input.Write("DSC_0042.JPG", TestMedia.Jpeg(model: "SM-A415F", dateTimeOriginal: taken));
+
+        var summary = Process(input.Path, output.Path);
+
+        Assert.Equal(new ProcessingSummary(2, 0, 0, 0, 0), summary);
+        Assert.Equal(["IMG 2022-11-13 13.50.22 A41.jpg", "IMG 2022-11-13 13.50.22 A41.nef"], output.FileNames());
+    }
+
+    [Fact]
+    public void UnreadableRaw_TakesDateAndDeviceFromItsJpeg()
+    {
+        var taken = new DateTime(2022, 11, 13, 13, 50, 22);
+        input.Write("IMG_0042.CR3", [1, 2, 3], lastWriteTime: FileTime);
+        input.Write("IMG_0042.JPG", TestMedia.Jpeg(model: "SM-A415F", dateTimeOriginal: taken));
+
+        Process(input.Path, output.Path);
+
+        Assert.Equal(["IMG 2022-11-13 13.50.22 A41.cr3", "IMG 2022-11-13 13.50.22 A41.jpg"], output.FileNames());
+    }
+
+    [Fact]
+    public void LivePhotoVideo_IsNamedLikeItsPhoto()
+    {
+        input.Write("IMG_1234.HEIC", TestMedia.Jpeg(model: "iPhone 15", dateTimeOriginal: new DateTime(2024, 6, 1, 10, 0, 0)));
+        input.Write("IMG_1234.MOV", TestMedia.Mov(new DateTime(2024, 6, 1, 10, 0, 2)));
+
+        Process(input.Path, output.Path);
+
+        Assert.Equal(["IMG 2024-06-01 10.00.00 iPhone 15.heic", "IMG 2024-06-01 10.00.00 iPhone 15.mov"], output.FileNames());
+    }
+
+    [Fact]
+    public void Sidecars_FollowTheirMediaFile()
+    {
+        input.Write("IMG_1234.HEIC", TestMedia.Jpeg(dateTimeOriginal: new DateTime(2024, 6, 1, 10, 0, 0)));
+        input.Write("IMG_1234.AAE", [1]);
+        input.Write("IMG_1234.xmp", [2]);
+        input.Write("IMG_1234.HEIC.xmp", [3]);
+
+        var summary = Process(input.Path, output.Path);
+
+        Assert.Equal(new ProcessingSummary(4, 0, 0, 0, 0), summary);
+        Assert.Equal(
+            ["IMG 2024-06-01 10.00.00.aae", "IMG 2024-06-01 10.00.00.heic", "IMG 2024-06-01 10.00.00.heic.xmp", "IMG 2024-06-01 10.00.00.xmp"],
+            output.FileNames());
+    }
+
+    [Fact]
+    public void JpegSidecarExtension_IsNormalizedWithItsPhoto()
+    {
+        input.Write("photo.JPEG", TestMedia.Jpeg(dateTimeOriginal: new DateTime(2024, 6, 1, 10, 0, 0)));
+        input.Write("photo.JPEG.xmp", [1]);
+
+        Process(input.Path, output.Path);
+
+        Assert.Equal(["IMG 2024-06-01 10.00.00.jpg", "IMG 2024-06-01 10.00.00.jpg.xmp"], output.FileNames());
+    }
+
+    [Fact]
+    public void SidecarWithoutMedia_IsLeftAlone()
+    {
+        input.Write("IMG_9999.AAE", [1]);
+
+        var summary = Process(input.Path, output.Path);
+
+        Assert.Equal(new ProcessingSummary(0, 0, 0, 1, 0), summary);
+        Assert.Equal(["IMG_9999.AAE"], input.FileNames());
+    }
+
+    [Fact]
+    public void GroupCollision_MovesWholeGroupToNextNumber()
+    {
+        var taken = new DateTime(2022, 11, 13, 13, 50, 22);
+        output.Write("IMG 2022-11-13 13.50.22.jpg", TestMedia.Jpeg(dateTimeOriginal: taken, subSecondOriginal: "1"));
+        input.Write("DSC_0042.JPG", TestMedia.Jpeg(dateTimeOriginal: taken, subSecondOriginal: "2"));
+        input.Write("DSC_0042.dng", TestMedia.Tiff(dateTimeOriginal: taken));
+
+        Process(input.Path, output.Path);
+
+        // .dng alone would fit at index 0, but it must stay paired with its JPEG.
+        Assert.Equal(["IMG 2022-11-13 13.50.22 1.dng", "IMG 2022-11-13 13.50.22 1.jpg", "IMG 2022-11-13 13.50.22.jpg"], output.FileNames());
+    }
+
+    [Fact]
+    public void JpegAlreadyImported_RawIsAddedNextToIt()
+    {
+        var taken = new DateTime(2022, 11, 13, 13, 50, 22);
+        var jpeg = TestMedia.Jpeg(dateTimeOriginal: taken);
+        output.Write("IMG 2022-11-13 13.50.22.jpg", jpeg);
+        input.Write("DSC_0042.JPG", jpeg);
+        input.Write("DSC_0042.dng", TestMedia.Tiff(dateTimeOriginal: taken));
+
+        var summary = Process(input.Path, output.Path);
+
+        Assert.Equal(new ProcessingSummary(1, 0, 1, 0, 0), summary);
+        Assert.Equal(["IMG 2022-11-13 13.50.22.dng", "IMG 2022-11-13 13.50.22.jpg"], output.FileNames());
+        Assert.Equal(["DSC_0042.JPG"], input.FileNames());
+    }
+
+    [Fact]
+    public void GroupsRunTwiceInPlace_ChangeNothingTheSecondTime()
+    {
+        var taken = new DateTime(2022, 11, 13, 13, 50, 22);
+        input.Write("A.JPG", TestMedia.Jpeg(dateTimeOriginal: taken, subSecondOriginal: "1"));
+        input.Write("A.dng", TestMedia.Tiff(dateTimeOriginal: taken));
+        input.Write("A.xmp", [1]);
+        input.Write("B.JPG", TestMedia.Jpeg(dateTimeOriginal: taken, subSecondOriginal: "2"));
+        input.Write("B.JPG.xmp", [2]);
+
+        var first = Process(input.Path, input.Path);
+        var names = input.FileNames();
+        var second = Process(input.Path, input.Path);
+
+        Assert.Equal(new ProcessingSummary(5, 0, 0, 0, 0), first);
+        Assert.Equal(new ProcessingSummary(0, 5, 0, 0, 0), second);
+        Assert.Equal(names, input.FileNames());
+        Assert.Equal(
+            ["IMG 2022-11-13 13.50.22 1.jpg", "IMG 2022-11-13 13.50.22 1.jpg.xmp", "IMG 2022-11-13 13.50.22.dng", "IMG 2022-11-13 13.50.22.jpg", "IMG 2022-11-13 13.50.22.xmp"],
+            names);
+    }
+
+    [Fact]
+    public void FilesWhoseExtensionsNormalizeToTheSameName_AreNotRenamed()
+    {
+        input.Write("photo.JPG", TestMedia.Jpeg(dateTimeOriginal: new DateTime(2024, 6, 1, 10, 0, 0)));
+        input.Write("photo.jpeg", TestMedia.Jpeg(dateTimeOriginal: new DateTime(2024, 6, 1, 10, 0, 1)));
+
+        var summary = Process(input.Path, output.Path);
+
+        Assert.Equal(new ProcessingSummary(0, 0, 0, 0, 2), summary);
+        Assert.Equal(["photo.JPG", "photo.jpeg"], input.FileNames());
     }
 
     [Fact]
