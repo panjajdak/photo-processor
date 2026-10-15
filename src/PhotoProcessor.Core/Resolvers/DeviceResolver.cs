@@ -1,28 +1,39 @@
-﻿namespace PhotoProcessor.Core.Resolvers;
+namespace PhotoProcessor.Core.Resolvers;
 
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using PhotoProcessor.Core.Abstractions;
 using PhotoProcessor.Core.Config;
 
 internal class DeviceNameResolver : IDeviceNameResolver
 {
+    private static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
+
     private readonly Dictionary<string, string> deviceMapping;
 
     public DeviceNameResolver(Configuration config)
     {
-        deviceMapping = config.DeviceMapping;
+        deviceMapping = new Dictionary<string, string>(config.DeviceMapping, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc/>
-    public string Resolve(string key)
+    public string? Resolve(string? deviceName)
     {
-        if (deviceMapping.TryGetValue(key, out var mapping))
+        var key = deviceName?.Trim();
+        if (string.IsNullOrEmpty(key))
         {
-            return mapping;
+            return null;
         }
-        else
-        {
-            return key;
-        }
+
+        var name = deviceMapping.TryGetValue(key, out var mapping) ? mapping : key;
+        return Sanitize(name);
+    }
+
+    private static string? Sanitize(string name)
+    {
+        var cleaned = new string(name.Select(c => InvalidFileNameChars.Contains(c) ? '_' : c).ToArray()).Trim(' ', '.');
+        return cleaned.Length == 0 ? null : cleaned;
     }
 }

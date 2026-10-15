@@ -2,11 +2,15 @@
 
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="MetadataExtractor" Version="2.7.0" />
-		<PackageReference Include="RedCorners.ExifLibrary" Version="2.0.0" />
+		<PackageReference Include="MetadataExtractor" Version="2.9.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="PhotoProcessor.Core.Tests" />
 	</ItemGroup>
 
 </Project>
