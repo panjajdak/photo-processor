@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using PhotoProcessor.Core.Abstractions;
 using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Dating;
@@ -19,7 +20,8 @@ using PhotoProcessor.Core.Resolvers;
 public sealed record ProcessingSummary(int Renamed, int AlreadyNamed, int Duplicates, int Unsupported, int Failed);
 
 /// <param name="JournalPath">Journal to undo this run with; null when nothing was moved or copied.</param>
-public sealed record ProcessingResult(ProcessingSummary Summary, string? JournalPath, bool DryRun);
+/// <param name="Cancelled">The run was stopped early; files not reached yet were left alone.</param>
+public sealed record ProcessingResult(ProcessingSummary Summary, string? JournalPath, bool DryRun, bool Cancelled = false);
 
 public sealed record ProcessingProgress(string Stage, int Done, int Total);
 
@@ -32,13 +34,14 @@ public class DirectoryProcessor
     private readonly IDeviceNameResolver deviceResolver;
     private readonly FileNameTemplate template;
 
-    /// <exception cref="FormatException">The file name template in <paramref name="config"/> is invalid.</exception>
+    /// <exception cref="InvalidConfigurationException"><paramref name="config"/> has errors.</exception>
     public DirectoryProcessor(Configuration config, ILog log)
         : this(config, log, new MetadataExtractorReader())
     { }
 
     internal DirectoryProcessor(Configuration config, ILog log, IMetadataReader metadataReader)
     {
+        ConfigurationCheck.EnsureValid(config);
         this.config = config;
         this.log = log;
         this.metadataReader = metadataReader;
@@ -48,7 +51,13 @@ public class DirectoryProcessor
     }
 
     /// <param name="dryRun">Report what would happen without touching any file.</param>
-    public ProcessingResult Process(string inputDirectory, string outputDirectory, bool dryRun = false, IProgress<ProcessingProgress>? progress = null)
+    /// <param name="cancellationToken">Stops the run between files; the file being moved is always finished first.</param>
+    public ProcessingResult Process(
+        string inputDirectory,
+        string outputDirectory,
+        bool dryRun = false,
+        IProgress<ProcessingProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         inputDirectory = Path.GetFullPath(inputDirectory);
         outputDirectory = Path.GetFullPath(outputDirectory);
@@ -62,7 +71,7 @@ public class DirectoryProcessor
         using var journal = new RunJournal(outputDirectory);
         var run = new Run(dryRun, outputDirectory, counts, fileSystem, journal, new DuplicateIndex(fileSystem));
 
-        var groups = Plan(ListSupportedFiles(inputDirectory, counts), counts, progress);
+        var groups = Plan(ListSupportedFiles(inputDirectory, counts), counts, progress, cancellationToken);
 
         // Groups already carrying their name stay put; they are recognized first so incoming copies of them count as duplicates.
         var pending = new List<PlannedGroup>();
@@ -91,6 +100,11 @@ public class DirectoryProcessor
         var done = 0;
         foreach (var group in ordered)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
             try
             {
                 Execute(group, run);
@@ -107,7 +121,7 @@ public class DirectoryProcessor
         }
 
         var summary = new ProcessingSummary(counts.Renamed, counts.AlreadyNamed, counts.Duplicates, counts.Unsupported, counts.Failed);
-        return new ProcessingResult(summary, journal.Path, dryRun);
+        return new ProcessingResult(summary, journal.Path, dryRun, cancellationToken.IsCancellationRequested);
     }
 
     private List<string> ListSupportedFiles(string inputDirectory, Counts counts)
@@ -128,7 +142,7 @@ public class DirectoryProcessor
         return supported;
     }
 
-    private List<PlannedGroup> Plan(List<string> files, Counts counts, IProgress<ProcessingProgress>? progress)
+    private List<PlannedGroup> Plan(List<string> files, Counts counts, IProgress<ProcessingProgress>? progress, CancellationToken cancellationToken)
     {
         var planned = new List<PlannedGroup>();
         var done = 0;
@@ -136,6 +150,11 @@ public class DirectoryProcessor
         // A photo, its RAW/Live Photo companions and its sidecars share a stem and are renamed together.
         foreach (var group in files.GroupBy(MediaTypes.GetStem, StringComparer.OrdinalIgnoreCase))
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return [];
+            }
+
             var paths = group.ToList();
             if (!paths.Any(path => MediaTypes.GetKind(path) != null))
             {

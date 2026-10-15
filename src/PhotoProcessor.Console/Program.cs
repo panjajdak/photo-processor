@@ -1,204 +1,84 @@
 namespace PhotoProcessor.Console;
 
 using System.CommandLine;
-using System.Text.Json;
-using PhotoProcessor.Core;
-using PhotoProcessor.Core.Config;
-using PhotoProcessor.Core.Journal;
+using System.CommandLine.Invocation;
+using PhotoProcessor.Console.Cli;
+using PhotoProcessor.Console.Commands;
 
 internal static class Program
 {
-    private static class ExitCode
-    {
-        public const int Success = 0;
-        public const int CompletedWithFailures = 1;
-        public const int InvalidUsage = 2;
-        public const int Crashed = 3;
-    }
-
-    private static readonly Option<string?> ConfigOption = new("--config", "-c")
-    {
-        Description = "Path to config.json. Default: config.json next to the executable.",
-        Recursive = true,
-    };
-
-    private static readonly Option<bool> DryRunOption = new("--dry-run", "-n")
-    {
-        Description = "Show what would happen without changing any file.",
-        Recursive = true,
-    };
-
-    private static readonly Option<bool> VerboseOption = new("--verbose", "-v")
-    {
-        Description = "List every file that is renamed, restored or skipped as a duplicate.",
-        Recursive = true,
-    };
+    /// <summary>
+    /// Name the program was started as, for help text and hints.
+    /// </summary>
+    public static string AppName { get; } = Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "photoprocessor";
 
     private static int Main(string[] args)
     {
-        var input = new Argument<string?>("input")
+        using var cancellation = new CancellationTokenSource();
+        System.Console.CancelKeyPress += (_, e) =>
         {
-            Description = "Folder with photos and videos. Default: InputDirectory from config.",
-            Arity = ArgumentArity.ZeroOrOne,
-        };
-        var output = new Argument<string?>("output")
-        {
-            Description = "Folder to move renamed files to. Default: the input folder when input is given, otherwise OutputDirectory from config.",
-            Arity = ArgumentArity.ZeroOrOne,
-        };
-        var copy = new Option<bool>("--copy")
-        {
-            Description = "Copy files instead of moving them (overrides Options.CopyingEnabled).",
+            // First Ctrl+C: finish the file in progress and stop cleanly. Second: terminate immediately.
+            if (!cancellation.IsCancellationRequested)
+            {
+                e.Cancel = true;
+                System.Console.Error.WriteLine();
+                System.Console.Error.WriteLine("Stopping after the current file... (press Ctrl+C again to abort immediately)");
+                cancellation.Cancel();
+            }
         };
 
-        var root = new RootCommand("Renames photos and videos to \"<type> <date taken> <device>\" using their metadata.")
-        {
-            input, output, copy, ConfigOption, DryRunOption, VerboseOption,
-        };
-        root.SetAction(parse => Rename(parse.GetValue(input), parse.GetValue(output), parse.GetValue(copy), parse));
+        var root = BuildCommandLine(cancellation.Token);
 
-        var target = new Argument<string?>("target")
-        {
-            Description = "Journal file, or output folder to undo its latest run. Default: OutputDirectory from config.",
-            Arity = ArgumentArity.ZeroOrOne,
-        };
-        var undo = new Command("undo", "Reverts a previous run using its journal.") { target };
-        undo.SetAction(parse => Undo(parse.GetValue(target), parse));
-        root.Add(undo);
+        // Without a command there is nothing to do; show the overview instead of an error.
+        var parseResult = root.Parse(args.Length == 0 ? ["--help"] : args);
 
-        return root.Parse(args).Invoke();
+        // Ctrl+C is handled above, so the parser must not install its own handler that kills the process mid-move.
+        var invocation = new InvocationConfiguration { ProcessTerminationTimeout = null };
+
+        if (parseResult.Action is ParseErrorAction parseError)
+        {
+            // Show the error and a pointer to help rather than burying the error under the full help text.
+            parseError.ShowHelp = false;
+            parseResult.Invoke(invocation);
+
+            var command = string.Join(' ', parseResult.CommandResult.Command.Name == root.Name ? [AppName] : [AppName, parseResult.CommandResult.Command.Name]);
+            System.Console.Error.WriteLine($"Run \"{command} --help\" for usage.");
+            return ExitCodes.InvalidUsage;
+        }
+
+        var exitCode = parseResult.Invoke(invocation);
+        return args.Length == 0 ? ExitCodes.InvalidUsage : exitCode;
     }
 
-    private static int Rename(string? input, string? output, bool copy, ParseResult parse)
+    private static RootCommand BuildCommandLine(CancellationToken cancellationToken)
     {
-        var reporter = new ConsoleReporter(parse.GetValue(VerboseOption));
-        try
+        var root = new RootCommand("Renames photos and videos from different devices to consistent, sortable names based on "
+            + "when they were taken and with which device, e.g. IMG_20210408_194108.jpg -> IMG 2021-04-08 19.41.08 A41.jpg.")
         {
-            var config = ReadConfig(parse.GetValue(ConfigOption));
-            if (copy)
-            {
-                config.Options.CopyingEnabled = true;
-            }
+            RenameCommand.Create(cancellationToken),
+            UndoCommand.Create(cancellationToken),
+            HistoryCommand.Create(),
+            ConfigCommand.Create(),
+        };
+        CommonOptions.AddTo(root);
 
-            var inputDirectory = input ?? config.InputDirectory;
-            var outputDirectory = output ?? (input != null ? input : config.OutputDirectory ?? config.InputDirectory);
-            if (string.IsNullOrWhiteSpace(inputDirectory) || string.IsNullOrWhiteSpace(outputDirectory))
-            {
-                throw new UsageException("No input folder given and no InputDirectory in config.");
-            }
+        HelpSections.Add(root, $"""
+            {HelpSections.Examples(
+                ($@"{AppName} rename D:\Camera --dry-run", "Preview the new names"),
+                ($@"{AppName} rename D:\Camera D:\Photos", @"Rename and move the files to D:\Photos"),
+                ($@"{AppName} undo D:\Photos", "Revert that run"),
+                ($"{AppName} config", "Show and check the configuration"))}
 
-            if (!Directory.Exists(inputDirectory))
-            {
-                throw new UsageException($"Input folder does not exist: {inputDirectory}");
-            }
+            Run "{AppName} <command> --help" for details, e.g. "{AppName} rename --help".
 
-            var dryRun = parse.GetValue(DryRunOption);
-            var processor = new DirectoryProcessor(config, reporter);
-            var result = processor.Process(inputDirectory, outputDirectory, dryRun, reporter);
-            reporter.ClearProgress();
+            Configuration:
+              Settings live in a JSON file: --config <file>, else ${ConfigLoader.EnvironmentVariable},
+              else config.json next to the executable. "{AppName} config" shows which one is used.
 
-            var s = result.Summary;
-            System.Console.WriteLine(
-                $"{(dryRun ? "Dry run, nothing was changed. Would rename" : "Renamed")}: {s.Renamed}, already named: {s.AlreadyNamed}, " +
-                $"duplicates: {s.Duplicates}, unsupported: {s.Unsupported}, failed: {s.Failed}");
+            {HelpSections.ExitCodeList(ExitCodes.All)}
+            """);
 
-            if (result.JournalPath != null)
-            {
-                System.Console.WriteLine($"Undo this run with: {AppName} undo \"{result.JournalPath}\"");
-            }
-
-            return s.Failed > 0 ? ExitCode.CompletedWithFailures : ExitCode.Success;
-        }
-        catch (Exception ex) when (ex is UsageException or FormatException or JsonException or TimeZoneNotFoundException)
-        {
-            reporter.ClearProgress();
-            System.Console.Error.WriteLine(ex.Message);
-            return ExitCode.InvalidUsage;
-        }
-        catch (Exception ex)
-        {
-            reporter.ClearProgress();
-            System.Console.Error.WriteLine($"Stopped: {ex.Message}");
-            return ExitCode.Crashed;
-        }
+        HelpSections.Install(root);
+        return root;
     }
-
-    private static int Undo(string? target, ParseResult parse)
-    {
-        var reporter = new ConsoleReporter(parse.GetValue(VerboseOption));
-        try
-        {
-            var journal = ResolveJournal(target, parse.GetValue(ConfigOption));
-            var dryRun = parse.GetValue(DryRunOption);
-
-            var summary = new Undoer(reporter).Undo(journal, dryRun);
-
-            System.Console.WriteLine(
-                $"{(dryRun ? "Dry run, nothing was changed. Would restore" : "Restored")}: {summary.Restored}, " +
-                $"already restored: {summary.AlreadyRestored}, skipped: {summary.Skipped}");
-            if (summary.Skipped > 0 && !dryRun)
-            {
-                System.Console.WriteLine("Some files were skipped; the journal was kept so undo can be retried after fixing them.");
-            }
-
-            return summary.Skipped > 0 ? ExitCode.CompletedWithFailures : ExitCode.Success;
-        }
-        catch (Exception ex) when (ex is UsageException or JsonException)
-        {
-            System.Console.Error.WriteLine(ex.Message);
-            return ExitCode.InvalidUsage;
-        }
-        catch (Exception ex)
-        {
-            System.Console.Error.WriteLine($"Stopped: {ex.Message}");
-            return ExitCode.Crashed;
-        }
-    }
-
-    private static string ResolveJournal(string? target, string? configPath)
-    {
-        if (target != null && File.Exists(target))
-        {
-            return target;
-        }
-
-        var directory = target;
-        if (directory == null)
-        {
-            var config = ReadConfig(configPath);
-            directory = config.OutputDirectory ?? config.InputDirectory
-                ?? throw new UsageException("No folder given and no OutputDirectory in config.");
-        }
-
-        if (!Directory.Exists(directory))
-        {
-            throw new UsageException($"Not a journal file or folder: {directory}");
-        }
-
-        return Undoer.FindLatestJournal(directory)
-            ?? throw new UsageException($"No run left to undo in {directory}");
-    }
-
-    private static Configuration ReadConfig(string? path)
-    {
-        path ??= Path.Combine(AppContext.BaseDirectory, "config.json");
-        if (!File.Exists(path))
-        {
-            throw new UsageException($"Config does not exist: {path}");
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<Configuration>(File.ReadAllText(path))
-                ?? throw new UsageException($"Config is empty: {path}");
-        }
-        catch (JsonException ex)
-        {
-            throw new UsageException($"Config {path} is not valid JSON: {ex.Message}");
-        }
-    }
-
-    private static string AppName => Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "PhotoProcessor.Console";
-
-    private sealed class UsageException(string message) : Exception(message);
 }

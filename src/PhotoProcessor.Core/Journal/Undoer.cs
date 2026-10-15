@@ -2,12 +2,14 @@ namespace PhotoProcessor.Core.Journal;
 
 using System;
 using System.IO;
+using System.Threading;
 using PhotoProcessor.Core.Abstractions;
 
 /// <param name="Restored">Files moved back or copies removed.</param>
 /// <param name="AlreadyRestored">Entries an earlier undo already reverted.</param>
 /// <param name="Skipped">Entries left alone because the files changed since the run.</param>
-public sealed record UndoSummary(int Restored, int AlreadyRestored, int Skipped);
+/// <param name="Cancelled">Undo was stopped early; running it again continues where it stopped.</param>
+public sealed record UndoSummary(int Restored, int AlreadyRestored, int Skipped, bool Cancelled = false);
 
 /// <summary>
 /// Reverts a run from its journal, newest operation first. Never overwrites a file and never deletes
@@ -27,13 +29,18 @@ public sealed class Undoer
     /// </summary>
     public static string? FindLatestJournal(string outputDirectory) => RunJournal.FindLatest(outputDirectory);
 
-    public UndoSummary Undo(string journalPath, bool dryRun = false)
+    public UndoSummary Undo(string journalPath, bool dryRun = false, CancellationToken cancellationToken = default)
     {
         var entries = RunJournal.Read(journalPath);
         int restored = 0, alreadyRestored = 0, skipped = 0;
 
         for (var i = entries.Count - 1; i >= 0; i--)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new UndoSummary(restored, alreadyRestored, skipped, Cancelled: true);
+            }
+
             var entry = entries[i];
             try
             {

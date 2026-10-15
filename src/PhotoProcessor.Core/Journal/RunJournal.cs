@@ -16,6 +16,7 @@ internal sealed class RunJournal : IDisposable
 {
     public const string FolderName = ".photoprocessor";
     private const string RunsFolderName = "runs";
+    public const string TimestampFormat = "yyyyMMdd-HHmmss-fff";
     private const string UndoneSuffix = ".undone.jsonl";
 
     internal static readonly JsonSerializerOptions JsonOptions = new()
@@ -46,7 +47,7 @@ internal sealed class RunJournal : IDisposable
             folder.Attributes |= FileAttributes.Hidden;
             Directory.CreateDirectory(runs);
 
-            Path = System.IO.Path.Combine(runs, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".jsonl");
+            Path = System.IO.Path.Combine(runs, DateTime.Now.ToString(TimestampFormat) + ".jsonl");
             writer = new StreamWriter(new FileStream(Path, FileMode.CreateNew, FileAccess.Write, FileShare.Read));
         }
 
@@ -68,15 +69,20 @@ internal sealed class RunJournal : IDisposable
     /// Latest journal in <paramref name="directory"/> that has not been undone yet.
     /// </summary>
     public static string? FindLatest(string directory)
+        => ListAll(directory).LastOrDefault(p => !IsUndone(p));
+
+    /// <summary>
+    /// All journals in <paramref name="directory"/>, oldest first.
+    /// </summary>
+    public static IReadOnlyList<string> ListAll(string directory)
     {
         var runs = GetRunsDirectory(directory);
         return Directory.Exists(runs)
-            ? Directory.GetFiles(runs, "*.jsonl")
-                .Where(p => !p.EndsWith(UndoneSuffix, StringComparison.OrdinalIgnoreCase))
-                .Order(StringComparer.Ordinal)
-                .LastOrDefault()
-            : null;
+            ? Directory.GetFiles(runs, "*.jsonl").OrderBy(System.IO.Path.GetFileName, StringComparer.Ordinal).ToList()
+            : [];
     }
+
+    public static bool IsUndone(string path) => path.EndsWith(UndoneSuffix, StringComparison.OrdinalIgnoreCase);
 
     public static void MarkUndone(string path)
         => File.Move(path, System.IO.Path.ChangeExtension(path, null) + UndoneSuffix);

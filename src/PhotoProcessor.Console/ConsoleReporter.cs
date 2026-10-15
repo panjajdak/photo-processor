@@ -3,33 +3,56 @@ namespace PhotoProcessor.Console;
 using PhotoProcessor.Core;
 using PhotoProcessor.Core.Abstractions;
 
+internal enum Verbosity
+{
+    Quiet,
+    Normal,
+    Verbose,
+}
+
 /// <summary>
-/// Writes log lines to stdout and a single, updating progress line to stderr when it is a terminal.
+/// Results go to stdout; warnings, errors and the updating progress line go to stderr, so stdout can be piped or
+/// redirected cleanly. Colors are used only on a terminal and never when NO_COLOR is set.
 /// </summary>
 internal sealed class ConsoleReporter : ILog, IProgress<ProcessingProgress>
 {
-    private readonly bool verbose;
-    private readonly bool showProgress = !System.Console.IsErrorRedirected;
+    private readonly Verbosity verbosity;
+    private readonly bool showProgress;
+    private readonly bool useColor;
     private readonly object sync = new();
     private int progressLength;
     private string? lastProgress;
 
-    public ConsoleReporter(bool verbose)
+    public ConsoleReporter(Verbosity verbosity)
     {
-        this.verbose = verbose;
+        this.verbosity = verbosity;
+        showProgress = verbosity != Verbosity.Quiet && !System.Console.IsErrorRedirected;
+        useColor = !System.Console.IsErrorRedirected && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
     }
 
     public void LogMessage(string message)
     {
-        if (verbose)
+        if (verbosity == Verbosity.Verbose)
         {
-            WriteLine(System.Console.Out, message);
+            Write(System.Console.Out, message, color: null);
         }
     }
 
-    public void LogWarning(string message) => WriteLine(System.Console.Out, "Warning: " + message);
+    public void LogWarning(string message)
+    {
+        if (verbosity != Verbosity.Quiet)
+        {
+            Write(System.Console.Error, "warning: " + message, ConsoleColor.Yellow);
+        }
+    }
 
-    public void LogError(Exception ex) => WriteLine(System.Console.Error, (verbose ? ex.ToString() : ex.Message));
+    public void LogError(Exception ex)
+        => Write(System.Console.Error, "error: " + (verbosity == Verbosity.Verbose ? ex.ToString() : ex.Message), ConsoleColor.Red);
+
+    /// <summary>
+    /// Message that is shown even in quiet mode, e.g. the final summary.
+    /// </summary>
+    public void Result(string message) => Write(System.Console.Out, message, color: null);
 
     public void Report(ProcessingProgress value)
     {
@@ -38,8 +61,7 @@ internal sealed class ConsoleReporter : ILog, IProgress<ProcessingProgress>
             return;
         }
 
-        var percent = value.Done * 100 / value.Total;
-        var text = $"{value.Stage}: {value.Done}/{value.Total} ({percent}%)";
+        var text = $"{value.Stage}: {value.Done}/{value.Total} ({value.Done * 100 / value.Total}%)";
         lock (sync)
         {
             if (text == lastProgress)
@@ -64,19 +86,31 @@ internal sealed class ConsoleReporter : ILog, IProgress<ProcessingProgress>
             {
                 System.Console.Error.Write("\r" + new string(' ', progressLength) + "\r");
                 progressLength = 0;
-                lastProgress = null;
             }
+
+            lastProgress = null;
         }
     }
 
-    private void WriteLine(TextWriter writer, string message)
+    private void Write(TextWriter writer, string message, ConsoleColor? color)
     {
         lock (sync)
         {
             var progress = lastProgress;
             ClearProgress();
-            writer.WriteLine(message);
-            if (progress != null && showProgress)
+
+            if (color != null && useColor)
+            {
+                System.Console.ForegroundColor = color.Value;
+                writer.WriteLine(message);
+                System.Console.ResetColor();
+            }
+            else
+            {
+                writer.WriteLine(message);
+            }
+
+            if (progress != null)
             {
                 System.Console.Error.Write(progress);
                 progressLength = progress.Length;

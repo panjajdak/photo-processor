@@ -156,7 +156,90 @@ public sealed class RunFeatureTests : IDisposable
     {
         config.FileNameTemplate = "{date:HH:mm}";
 
-        Assert.Throws<FormatException>(() => new DirectoryProcessor(config, log));
+        var ex = Assert.Throws<InvalidConfigurationException>(() => new DirectoryProcessor(config, log));
+        Assert.Contains("HH:mm", ex.Message);
+    }
+
+    // --- Cancellation ---
+
+    [Fact]
+    public void CancelledBeforeStart_ChangesNothing()
+    {
+        input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+
+        var result = new DirectoryProcessor(config, log).Process(input.Path, output.Path, cancellationToken: new CancellationToken(canceled: true));
+
+        Assert.True(result.Cancelled);
+        Assert.Equal(["IMG_1.jpg"], input.FileNames());
+        Assert.Null(result.JournalPath);
+    }
+
+    [Fact]
+    public void CancelledMidRun_StopsAfterCurrentGroup_AndRemainsUndoable()
+    {
+        input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+        input.Write("IMG_1.dng", TestMedia.Tiff(dateTimeOriginal: Taken));
+        input.Write("IMG_2.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(1)));
+        using var cancellation = new CancellationTokenSource();
+        var progress = new SyncProgress(p =>
+        {
+            if (p.Stage == "Renaming")
+            {
+                cancellation.Cancel();
+            }
+        });
+
+        var result = new DirectoryProcessor(config, log).Process(input.Path, output.Path, progress: progress, cancellationToken: cancellation.Token);
+
+        Assert.True(result.Cancelled);
+        Assert.Equal(["IMG 2021-04-08 19.41.08.dng", "IMG 2021-04-08 19.41.08.jpg"], output.FileNames());
+        Assert.Equal(["IMG_2.jpg"], input.FileNames());
+
+        new Undoer(log).Undo(result.JournalPath!);
+        Assert.Equal(["IMG_1.dng", "IMG_1.jpg", "IMG_2.jpg"], input.FileNames());
+    }
+
+    [Fact]
+    public void CancelledUndo_CanBeContinued()
+    {
+        input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+        input.Write("IMG_2.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(1)));
+        var result = Process();
+
+        var cancelled = new Undoer(log).Undo(result.JournalPath!, cancellationToken: new CancellationToken(canceled: true));
+        Assert.Equal(new UndoSummary(0, 0, 0, Cancelled: true), cancelled);
+        Assert.Equal(result.JournalPath, Undoer.FindLatestJournal(output.Path));
+
+        var resumed = new Undoer(log).Undo(result.JournalPath!);
+        Assert.Equal(new UndoSummary(2, 0, 0), resumed);
+    }
+
+    // --- History ---
+
+    [Fact]
+    public void RunHistory_ListsRunsWithCountsAndStatus()
+    {
+        input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+        input.Write("IMG_2.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(1)));
+        var first = Process();
+        Thread.Sleep(5);
+        config.Options.CopyingEnabled = true;
+        input.Write("IMG_3.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(2)));
+        var second = Process();
+        new Undoer(log).Undo(second.JournalPath!);
+
+        var runs = RunHistory.List(output.Path);
+
+        Assert.Equal(2, runs.Count);
+        Assert.Equal((2, 0, false), (runs[0].Moved, runs[0].Copied, runs[0].Undone));
+        Assert.Equal((0, 1, true), (runs[1].Moved, runs[1].Copied, runs[1].Undone));
+        Assert.True(runs[0].Started <= runs[1].Started);
+        Assert.Equal(first.JournalPath, runs[0].JournalPath);
+    }
+
+    private sealed class SyncProgress(Action<ProcessingProgress> report) : IProgress<ProcessingProgress>
+    {
+        public void Report(ProcessingProgress value) => report(value);
     }
 
     // --- Journal and undo ---

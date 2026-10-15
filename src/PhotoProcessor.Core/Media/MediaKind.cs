@@ -3,6 +3,7 @@ namespace PhotoProcessor.Core.Media;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 internal enum MediaKind
 {
@@ -53,6 +54,11 @@ internal static class MediaTypes
         ".aae",
         ".thm",
     };
+
+    public static IEnumerable<string> ExtensionsOf(MediaKind kind)
+        => KindsByExtension.Where(e => e.Value == kind).Select(e => e.Key);
+
+    public static IEnumerable<string> SidecarExtensionList => SidecarExtensions;
 
     public static MediaKind? GetKind(string path)
         => KindsByExtension.TryGetValue(Path.GetExtension(path), out var kind) ? kind : null;
