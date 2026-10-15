@@ -1,0 +1,17 @@
+{
+    "DateFormat": "yyyy-MM-dd HH.mm.ss",
+    "Delimiter": " ",
+    "ImagePrefix": "IMG",
+    "VideoPrefix": "VID",
+    "Options": {
+        "CopyingEnabled": false
+    },
+    "DeviceMapping": {
+        "Redmi Note 5": "Redmi5",
+        "Mi-4c": "Mi4c",
+        "HERO7 Black": "Hero7",
+        "SM-A415F": "A41",
+        "SM-G990B": "S21",
+        "Galaxy S23": "S23"
+    }
+}

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MetadataExtractor" Version="2.7.0" />
+		<PackageReference Include="RedCorners.ExifLibrary" Version="2.0.0" />
+	</ItemGroup>
+
+</Project>
