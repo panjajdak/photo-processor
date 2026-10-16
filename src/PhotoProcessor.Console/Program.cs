@@ -1,81 +1,81 @@
-﻿namespace PhotoProcessor.Console;
+namespace PhotoProcessor.Console;
 
-using System.Text.Json;
-using PhotoProcessor.Core;
-using PhotoProcessor.Core.Abstractions;
-using PhotoProcessor.Core.Config;
+using System.CommandLine;
+using System.CommandLine.Invocation;
+using PhotoProcessor.Console.Cli;
+using PhotoProcessor.Console.Commands;
 
-internal class Program
+internal static class Program
 {
-    private static readonly string ConfigPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+    public static string AppName { get; } = Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "photoprocessor";
 
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
-        try
-        {
-            Configuration config = ReadConfig();
-            string inputDirectory, outputDirectory;
+        using var cancellation = new CancellationTokenSource();
+        StopAfterCurrentFileOnFirstCtrlC(cancellation);
 
-            switch (args.Length)
+        var root = BuildCommandLine(cancellation.Token);
+        var parseResult = root.Parse(args.Length == 0 ? ["--help"] : args);
+        var invocation = new InvocationConfiguration { ProcessTerminationTimeout = null };
+
+        if (parseResult.Action is ParseErrorAction parseError)
+        {
+            parseError.ShowHelp = false;
+            parseResult.Invoke(invocation);
+
+            var command = string.Join(' ', parseResult.CommandResult.Command.Name == root.Name ? [AppName] : [AppName, parseResult.CommandResult.Command.Name]);
+            System.Console.Error.WriteLine($"Run \"{command} --help\" for usage.");
+            return ExitCodes.InvalidUsage;
+        }
+
+        var exitCode = parseResult.Invoke(invocation);
+        return args.Length == 0 ? ExitCodes.InvalidUsage : exitCode;
+    }
+
+    private static void StopAfterCurrentFileOnFirstCtrlC(CancellationTokenSource cancellation)
+    {
+        System.Console.CancelKeyPress += (_, e) =>
+        {
+            var isFirstPress = !cancellation.IsCancellationRequested;
+            if (isFirstPress)
             {
-                case 0:
-                    // E:\dev\data\photoin
-                    inputDirectory = @"\\CARP\photos\_pipeline\in";
-                    outputDirectory = @"\\CARP\photos\_pipeline\out";
-                    //inputDirectory = @"G:\Pictures\Photos\--Pipeline\newout\2021";
-                    //outputDirectory = @"G:\Pictures\Photos\--Pipeline\newout\2021";
-                    //outputDirectory = inputDirectory;
-                    break;
-                case 1:
-                    inputDirectory = args[0];
-                    outputDirectory = inputDirectory;
-                    break;
-                case 2:
-                    inputDirectory = args[0];
-                    outputDirectory = args[1];
-                    break;
-                default:
-                    System.Console.WriteLine("Invalid args");
-                    System.Console.ReadKey();
-                    return;
+                e.Cancel = true;
+                System.Console.Error.WriteLine();
+                System.Console.Error.WriteLine("Stopping after the current file... (press Ctrl+C again to abort immediately)");
+                cancellation.Cancel();
             }
+        };
+    }
 
-            DirectoryProcessor dp = new DirectoryProcessor(config, new ConsoleLog());
-            ProcessingSummary summary = dp.Process(inputDirectory, outputDirectory);
-
-            System.Console.WriteLine(
-                $"Done. Renamed: {summary.Renamed}, already named: {summary.AlreadyNamed}, duplicates: {summary.Duplicates}, " +
-                $"unsupported: {summary.Unsupported}, failed: {summary.Failed}");
-        }
-        catch (Exception ex)
+    private static RootCommand BuildCommandLine(CancellationToken cancellationToken)
+    {
+        var root = new RootCommand("Renames photos and videos from different devices to consistent, sortable names based on "
+            + "when they were taken and with which device, e.g. IMG_20210408_194108.jpg -> IMG 2021-04-08 19.41.08 A41.jpg.")
         {
-            System.Console.WriteLine(ex.Message);
-            System.Console.ReadKey();
-        }
-    }
+            RenameCommand.Create(cancellationToken),
+            UndoCommand.Create(cancellationToken),
+            HistoryCommand.Create(),
+            ConfigCommand.Create(),
+        };
+        CommonOptions.AddTo(root);
 
-    private static Configuration ReadConfig()
-    {
-        if (!File.Exists(ConfigPath))
-        {
-            throw new Exception($"Config does not exist: {ConfigPath}");
-        }
+        HelpSections.Add(root, $"""
+            {HelpSections.Examples(
+                ($@"{AppName} rename D:\Camera --dry-run", "Preview the new names"),
+                ($@"{AppName} rename D:\Camera D:\Photos", @"Rename and move the files to D:\Photos"),
+                ($@"{AppName} undo D:\Photos", "Revert that run"),
+                ($"{AppName} config", "Show and check the configuration"))}
 
-        string jsonString = File.ReadAllText(ConfigPath);
-        return JsonSerializer.Deserialize<Configuration>(jsonString)
-            ?? throw new Exception($"Config is empty: {ConfigPath}");
-    }
-}
+            Run "{AppName} <command> --help" for details, e.g. "{AppName} rename --help".
 
-internal class ConsoleLog : ILog
-{
-    public void LogError(Exception ex)
-    {
-        System.Console.WriteLine(ex);
-    }
+            Configuration:
+              Settings live in a JSON file: --config <file>, else ${ConfigLoader.EnvironmentVariable},
+              else config.json next to the executable. "{AppName} config" shows which one is used.
 
-    public void LogMessage(string message)
-    {
-        System.Console.WriteLine(message);
+            {HelpSections.ExitCodeList(ExitCodes.All)}
+            """);
+
+        HelpSections.Install(root);
+        return root;
     }
 }

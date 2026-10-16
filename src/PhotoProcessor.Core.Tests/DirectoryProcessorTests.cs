@@ -1,6 +1,5 @@
 namespace PhotoProcessor.Core.Tests;
 
-using PhotoProcessor.Core.Abstractions;
 using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Tests.Support;
 
@@ -58,7 +57,6 @@ public sealed class DirectoryProcessorTests : IDisposable
         Process(input.Path, output.Path);
 
         Assert.Equal(["IMG 2021-04-08 20.30.40 A41 1.jpg", "IMG 2021-04-08 20.30.40 A41 2.jpg", "IMG 2021-04-08 20.30.40 A41.jpg"], output.FileNames());
-        // ".1" < ".5" < ".75": c first, then b, then a.
         Assert.Equal(TestMedia.Jpeg(model: "SM-A415F", dateTimeOriginal: taken, subSecondOriginal: "1"), File.ReadAllBytes(Path.Combine(output.Path, "IMG 2021-04-08 20.30.40 A41.jpg")));
         Assert.Equal(TestMedia.Jpeg(model: "SM-A415F", dateTimeOriginal: taken, subSecondOriginal: "5"), File.ReadAllBytes(Path.Combine(output.Path, "IMG 2021-04-08 20.30.40 A41 1.jpg")));
         Assert.Equal(TestMedia.Jpeg(model: "SM-A415F", dateTimeOriginal: taken, subSecondOriginal: "75"), File.ReadAllBytes(Path.Combine(output.Path, "IMG 2021-04-08 20.30.40 A41 2.jpg")));
@@ -249,7 +247,6 @@ public sealed class DirectoryProcessorTests : IDisposable
 
         Process(input.Path, output.Path);
 
-        // .dng alone would fit at index 0, but it must stay paired with its JPEG.
         Assert.Equal(["IMG 2022-11-13 13.50.22 1.dng", "IMG 2022-11-13 13.50.22 1.jpg", "IMG 2022-11-13 13.50.22.jpg"], output.FileNames());
     }
 
@@ -315,12 +312,5 @@ public sealed class DirectoryProcessorTests : IDisposable
     }
 
     private ProcessingSummary Process(string inputDirectory, string outputDirectory)
-        => new DirectoryProcessor(config, new NullLog()).Process(inputDirectory, outputDirectory);
-
-    private sealed class NullLog : ILog
-    {
-        public void LogError(Exception ex) { }
-
-        public void LogMessage(string message) { }
-    }
+        => new DirectoryProcessor(config, new TestLog()).Process(inputDirectory, outputDirectory).Summary;
 }

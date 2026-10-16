@@ -25,10 +25,16 @@ public class FileNameDateParserTests
     [InlineData("GH013592.mp4")]
     [InlineData("DSC01234.jpg")]
     [InlineData("IMG-20210408-WA0001.jpg")]
-    [InlineData("IMG_20211340_101010.jpg")] // month 13
-    [InlineData("IMG_20210230_101010.jpg")] // 30 February
-    [InlineData("IMG_20210408_256010.jpg")] // hour 25
     public void ParseDateTime_ReturnsNullWithoutFullTimestamp(string fileName)
+    {
+        Assert.Null(FileNameDateParser.ParseDateTime(fileName));
+    }
+
+    [Theory]
+    [InlineData("IMG_20211340_101010.jpg")]
+    [InlineData("IMG_20210230_101010.jpg")]
+    [InlineData("IMG_20210408_256010.jpg")]
+    public void ParseDateTime_RejectsImpossibleMonthDayOrHour(string fileName)
     {
         Assert.Null(FileNameDateParser.ParseDateTime(fileName));
     }

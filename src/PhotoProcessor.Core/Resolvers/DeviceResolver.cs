@@ -18,7 +18,6 @@ internal class DeviceNameResolver : IDeviceNameResolver
         deviceMapping = new Dictionary<string, string>(config.DeviceMapping, StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <inheritdoc/>
     public string? Resolve(string? deviceName)
     {
         var key = deviceName?.Trim();

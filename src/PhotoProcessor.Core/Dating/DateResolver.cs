@@ -8,9 +8,6 @@ using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Media;
 using PhotoProcessor.Core.Metadata;
 
-/// <summary>
-/// Where a date came from, ordered from most to least trustworthy.
-/// </summary>
 internal enum DateSource
 {
     ExifOriginal,
@@ -24,11 +21,24 @@ internal enum DateSource
     FileModified,
 }
 
-internal readonly record struct ResolvedDate(DateTime Value, DateSource Source);
+internal readonly record struct ResolvedDate(DateTime Value, DateSource Source)
+{
+    private static readonly DateSource[] SourcesMostTrustworthyFirst =
+    [
+        DateSource.ExifOriginal,
+        DateSource.QuickTimeCreationDate,
+        DateSource.ExifDigitized,
+        DateSource.QuickTimeUtc,
+        DateSource.QuickTimeLocal,
+        DateSource.FileName,
+        DateSource.ExifModified,
+        DateSource.FileNameDateOnly,
+        DateSource.FileModified,
+    ];
 
-/// <summary>
-/// Picks the local "date taken" of a file from the most trustworthy source available.
-/// </summary>
+    public int TrustRank => Array.IndexOf(SourcesMostTrustworthyFirst, Source);
+}
+
 internal sealed class DateResolver
 {
     private readonly TimeZoneInfo timeZone;
@@ -48,8 +58,6 @@ internal sealed class DateResolver
             .ToList();
     }
 
-    /// <param name="fileName">Original file name, without directory.</param>
-    /// <param name="lastWriteTime">File system modification time, the last resort.</param>
     public ResolvedDate Resolve(MediaKind kind, MediaMetadata metadata, string fileName, DateTime lastWriteTime)
     {
         var candidates = kind == MediaKind.Video
@@ -64,7 +72,6 @@ internal sealed class DateResolver
             }
         }
 
-        // A date-only file name (e.g. WhatsApp) beats the file time unless both agree on the day.
         if (FileNameDateParser.ParseDate(fileName) is { } day && DateOnly.FromDateTime(lastWriteTime) != day)
         {
             return new ResolvedDate(day.ToDateTime(TimeOnly.MinValue), DateSource.FileNameDateOnly);
@@ -83,7 +90,6 @@ internal sealed class DateResolver
 
     private IEnumerable<ResolvedDate?> VideoCandidates(MediaMetadata metadata, string fileName)
     {
-        // Wall-clock time where the video was shot, as written by iPhones.
         yield return From(metadata.QuickTimeCreationDate?.DateTime, DateSource.QuickTimeCreationDate);
 
         if (metadata.QuickTimeCreated is { } created)
