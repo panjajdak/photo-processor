@@ -5,9 +5,6 @@ using System.IO;
 
 internal static class FileComparer
 {
-    /// <summary>
-    /// Byte-by-byte comparison; cheaper than hashing because files of different size are rejected without reading.
-    /// </summary>
     public static bool AreIdentical(string a, string b)
     {
         if (new FileInfo(a).Length != new FileInfo(b).Length)

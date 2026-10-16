@@ -7,37 +7,19 @@ using PhotoProcessor.Console.Commands;
 
 internal static class Program
 {
-    /// <summary>
-    /// Name the program was started as, for help text and hints.
-    /// </summary>
     public static string AppName { get; } = Path.GetFileNameWithoutExtension(Environment.ProcessPath) ?? "photoprocessor";
 
     private static int Main(string[] args)
     {
         using var cancellation = new CancellationTokenSource();
-        System.Console.CancelKeyPress += (_, e) =>
-        {
-            // First Ctrl+C: finish the file in progress and stop cleanly. Second: terminate immediately.
-            if (!cancellation.IsCancellationRequested)
-            {
-                e.Cancel = true;
-                System.Console.Error.WriteLine();
-                System.Console.Error.WriteLine("Stopping after the current file... (press Ctrl+C again to abort immediately)");
-                cancellation.Cancel();
-            }
-        };
+        StopAfterCurrentFileOnFirstCtrlC(cancellation);
 
         var root = BuildCommandLine(cancellation.Token);
-
-        // Without a command there is nothing to do; show the overview instead of an error.
         var parseResult = root.Parse(args.Length == 0 ? ["--help"] : args);
-
-        // Ctrl+C is handled above, so the parser must not install its own handler that kills the process mid-move.
         var invocation = new InvocationConfiguration { ProcessTerminationTimeout = null };
 
         if (parseResult.Action is ParseErrorAction parseError)
         {
-            // Show the error and a pointer to help rather than burying the error under the full help text.
             parseError.ShowHelp = false;
             parseResult.Invoke(invocation);
 
@@ -48,6 +30,21 @@ internal static class Program
 
         var exitCode = parseResult.Invoke(invocation);
         return args.Length == 0 ? ExitCodes.InvalidUsage : exitCode;
+    }
+
+    private static void StopAfterCurrentFileOnFirstCtrlC(CancellationTokenSource cancellation)
+    {
+        System.Console.CancelKeyPress += (_, e) =>
+        {
+            var isFirstPress = !cancellation.IsCancellationRequested;
+            if (isFirstPress)
+            {
+                e.Cancel = true;
+                System.Console.Error.WriteLine();
+                System.Console.Error.WriteLine("Stopping after the current file... (press Ctrl+C again to abort immediately)");
+                cancellation.Cancel();
+            }
+        };
     }
 
     private static RootCommand BuildCommandLine(CancellationToken cancellationToken)

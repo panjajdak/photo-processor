@@ -6,9 +6,6 @@ using PhotoProcessor.Core;
 using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Media;
 
-/// <summary>
-/// Renames the files in a folder.
-/// </summary>
 internal static class RenameCommand
 {
     public static Command Create(CancellationToken cancellationToken)

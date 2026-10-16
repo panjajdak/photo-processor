@@ -3,10 +3,6 @@ namespace PhotoProcessor.Core.Dating;
 using System;
 using System.Text.RegularExpressions;
 
-/// <summary>
-/// Extracts dates that devices and apps embed in file names, e.g. "IMG_20210408_194108.jpg",
-/// "Screenshot_20210408-194108.png", "IMG-20210408-WA0001.jpg" (date only) or this tool's own output.
-/// </summary>
 internal static partial class FileNameDateParser
 {
     public static DateTime? ParseDateTime(string fileName)
@@ -62,7 +58,6 @@ internal static partial class FileNameDateParser
         return true;
     }
 
-    // Trailing digits are allowed after the seconds so names with milliseconds still match.
     [GeneratedRegex(@"(?<!\d)(?<y>(?:19|20)\d{2})[-_.]?(?<mo>\d{2})[-_.]?(?<d>\d{2})[ _T.-]{0,3}(?<h>\d{2})[-_.:]?(?<mi>\d{2})[-_.:]?(?<s>\d{2})")]
     private static partial Regex DateTimePattern();
 

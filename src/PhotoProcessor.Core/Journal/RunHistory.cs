@@ -6,18 +6,13 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 
-/// <param name="JournalPath">Journal file, usable with <see cref="Undoer.Undo"/>.</param>
-/// <param name="Started">When the run started.</param>
-/// <param name="Moved">Files moved by the run.</param>
-/// <param name="Copied">Files copied by the run.</param>
-/// <param name="Undone">Whether the run has been undone.</param>
+/// <summary>A recorded run and what it changed.</summary>
 public sealed record RunInfo(string JournalPath, DateTime Started, int Moved, int Copied, bool Undone);
 
+/// <summary>Lists the runs recorded in an output folder.</summary>
 public static class RunHistory
 {
-    /// <summary>
-    /// Runs recorded in an output directory, oldest first.
-    /// </summary>
+    /// <summary>Runs recorded in the output folder, oldest first.</summary>
     public static IReadOnlyList<RunInfo> List(string outputDirectory)
         => RunJournal.ListAll(outputDirectory)
             .Select(path =>

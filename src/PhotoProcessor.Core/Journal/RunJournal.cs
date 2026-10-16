@@ -7,11 +7,6 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-/// <summary>
-/// Append-only record of the moves and copies of one run, one JSON object per line, so the run can be undone.
-/// Stored in "&lt;output&gt;/.photoprocessor/runs/". The file is created on the first operation and every line is
-/// flushed immediately, so even an interrupted run can be undone.
-/// </summary>
 internal sealed class RunJournal : IDisposable
 {
     public const string FolderName = ".photoprocessor";
@@ -33,9 +28,6 @@ internal sealed class RunJournal : IDisposable
         this.outputDirectory = outputDirectory;
     }
 
-    /// <summary>
-    /// Path of the journal file, or null when nothing has been recorded.
-    /// </summary>
     public string? Path { get; private set; }
 
     public void Record(JournalOperation op, string from, string to)
@@ -65,15 +57,9 @@ internal sealed class RunJournal : IDisposable
             .Select(line => JsonSerializer.Deserialize<JournalEntry>(line, JsonOptions)!)
             .ToList();
 
-    /// <summary>
-    /// Latest journal in <paramref name="directory"/> that has not been undone yet.
-    /// </summary>
     public static string? FindLatest(string directory)
         => ListAll(directory).LastOrDefault(p => !IsUndone(p));
 
-    /// <summary>
-    /// All journals in <paramref name="directory"/>, oldest first.
-    /// </summary>
     public static IReadOnlyList<string> ListAll(string directory)
     {
         var runs = GetRunsDirectory(directory);

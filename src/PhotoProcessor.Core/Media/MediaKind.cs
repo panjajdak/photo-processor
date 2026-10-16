@@ -25,7 +25,6 @@ internal static class MediaTypes
         [".tif"] = MediaKind.Image,
         [".tiff"] = MediaKind.Image,
 
-        // RAW
         [".dng"] = MediaKind.Image,
         [".cr2"] = MediaKind.Image,
         [".cr3"] = MediaKind.Image,
@@ -44,10 +43,6 @@ internal static class MediaTypes
         [".3gp"] = MediaKind.Video,
     };
 
-    /// <summary>
-    /// Files that describe a media file with the same name and must be renamed with it:
-    /// XMP edits (Lightroom "photo.xmp", darktable "photo.dng.xmp"), iPhone edits (.aae), camera thumbnails (.thm).
-    /// </summary>
     private static readonly HashSet<string> SidecarExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".xmp",
@@ -66,10 +61,6 @@ internal static class MediaTypes
     public static bool IsSidecar(string path)
         => SidecarExtensions.Contains(Path.GetExtension(path));
 
-    /// <summary>
-    /// Name shared by a media file and its companions: "IMG_1234" for IMG_1234.HEIC, IMG_1234.MOV,
-    /// IMG_1234.AAE, IMG_1234.xmp and IMG_1234.HEIC.xmp.
-    /// </summary>
     public static string GetStem(string path)
     {
         var name = Path.GetFileNameWithoutExtension(path);
@@ -78,9 +69,6 @@ internal static class MediaTypes
             : name;
     }
 
-    /// <summary>
-    /// Everything after the stem, lower-cased, with ".jpeg" normalized to ".jpg": ".jpg", ".xmp" or ".dng.xmp".
-    /// </summary>
     public static string GetOutputExtension(string path)
     {
         var name = Path.GetFileName(path);

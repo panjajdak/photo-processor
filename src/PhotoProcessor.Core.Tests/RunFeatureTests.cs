@@ -4,9 +4,6 @@ using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Journal;
 using PhotoProcessor.Core.Tests.Support;
 
-/// <summary>
-/// Dry run, duplicate detection, custom templates and journal/undo through the whole processor.
-/// </summary>
 public sealed class RunFeatureTests : IDisposable
 {
     private static readonly DateTime Taken = new(2021, 4, 8, 19, 41, 8);
@@ -25,8 +22,6 @@ public sealed class RunFeatureTests : IDisposable
         input.Dispose();
         output.Dispose();
     }
-
-    // --- Dry run ---
 
     [Fact]
     public void DryRun_ChangesNothing_AndPredictsTheRealRun()
@@ -66,8 +61,6 @@ public sealed class RunFeatureTests : IDisposable
         Assert.Equal(1, result.Summary.Renamed);
         Assert.False(Directory.Exists(target));
     }
-
-    // --- Duplicates ---
 
     [Fact]
     public void CopyAlreadyInOutputUnderAnotherName_IsSkipped()
@@ -122,8 +115,6 @@ public sealed class RunFeatureTests : IDisposable
         Assert.Equal(new ProcessingSummary(0, 1, 1, 0, 0), result.Summary);
     }
 
-    // --- Templates ---
-
     [Fact]
     public void CustomTemplate_IsUsedAndReRunsAreStable()
     {
@@ -159,8 +150,6 @@ public sealed class RunFeatureTests : IDisposable
         var ex = Assert.Throws<InvalidConfigurationException>(() => new DirectoryProcessor(config, log));
         Assert.Contains("HH:mm", ex.Message);
     }
-
-    // --- Cancellation ---
 
     [Fact]
     public void CancelledBeforeStart_ChangesNothing()
@@ -214,8 +203,6 @@ public sealed class RunFeatureTests : IDisposable
         Assert.Equal(new UndoSummary(2, 0, 0), resumed);
     }
 
-    // --- History ---
-
     [Fact]
     public void RunHistory_ListsRunsWithCountsAndStatus()
     {
@@ -241,8 +228,6 @@ public sealed class RunFeatureTests : IDisposable
     {
         public void Report(ProcessingProgress value) => report(value);
     }
-
-    // --- Journal and undo ---
 
     [Fact]
     public void Undo_RestoresOriginalNamesAndLocations()

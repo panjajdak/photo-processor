@@ -3,9 +3,6 @@ namespace PhotoProcessor.Core.Tests.Support;
 using System.Buffers.Binary;
 using System.Text;
 
-/// <summary>
-/// Builds minimal but valid JPEG, TIFF/DNG, WebP, MP4 and MOV files carrying just the metadata the tests need.
-/// </summary>
 internal static class TestMedia
 {
     private const ushort TypeAscii = 2;
@@ -30,9 +27,6 @@ internal static class TestMedia
         return jpeg.ToArray();
     }
 
-    /// <summary>
-    /// A bare TIFF with EXIF, which is what DNG, NEF, ARW and other TIFF-based RAW files look like to a metadata reader.
-    /// </summary>
     public static byte[] Tiff(string? model = null, DateTime? dateTimeOriginal = null)
         => Exif(null, model, null, dateTimeOriginal, null, null);
 
@@ -41,7 +35,8 @@ internal static class TestMedia
         var exif = Exif(null, model, null, dateTimeOriginal, null, null);
 
         var vp8x = new byte[10];
-        vp8x[0] = 0x08; // EXIF present
+        const byte ExifPresentFlag = 0x08;
+        vp8x[0] = ExifPresentFlag;
 
         byte[] chunks = [.. Chunk("VP8X", vp8x), .. Chunk("EXIF", exif)];
         var riff = new byte[12];
@@ -60,10 +55,8 @@ internal static class TestMedia
         }
     }
 
-    /// <summary>QuickTime (.mov) file; same layout as <see cref="Mp4"/> with the QuickTime brand.</summary>
     public static byte[] Mov(DateTime created) => Mp4(created, "qt  ");
 
-    /// <summary>MP4 whose movie header creation time is <paramref name="created"/> (seconds since 1904, as stored).</summary>
     public static byte[] Mp4(DateTime created) => Mp4(created, "isom");
 
     private static byte[] Mp4(DateTime created, string brand)
@@ -71,15 +64,19 @@ internal static class TestMedia
         var seconds = (uint)(created - new DateTime(1904, 1, 1)).TotalSeconds;
 
         var mvhd = new byte[100];
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(4), seconds);   // creation time
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(8), seconds);   // modification time
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(12), 1000);     // time scale
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(20), 0x00010000); // preferred rate 1.0
-        BinaryPrimitives.WriteUInt16BigEndian(mvhd.AsSpan(24), 0x0100);   // preferred volume 1.0
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(36), 0x00010000); // identity matrix
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(52), 0x00010000);
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(68), 0x40000000);
-        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(96), 1);        // next track id
+        const int CreationTime = 4, ModificationTime = 8, TimeScale = 12, PreferredRate = 20, PreferredVolume = 24;
+        const int MatrixA = 36, MatrixD = 52, MatrixW = 68, NextTrackId = 96;
+        const uint FixedPointOne = 0x00010000;
+
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(CreationTime), seconds);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(ModificationTime), seconds);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(TimeScale), 1000);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(PreferredRate), FixedPointOne);
+        BinaryPrimitives.WriteUInt16BigEndian(mvhd.AsSpan(PreferredVolume), 0x0100);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(MatrixA), FixedPointOne);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(MatrixD), FixedPointOne);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(MatrixW), 0x40000000);
+        BinaryPrimitives.WriteUInt32BigEndian(mvhd.AsSpan(NextTrackId), 1);
 
         var mvhdBox = Box("mvhd", mvhd);
         var ftyp = Box("ftyp", [.. Encoding.ASCII.GetBytes(brand), 0, 0, 2, 0, .. Encoding.ASCII.GetBytes(brand)]);
@@ -165,7 +162,8 @@ internal static class TestMedia
             }
         }
 
-        WriteUInt32LittleEndian(stream, 0); // no next IFD
+        const uint NoNextIfd = 0;
+        WriteUInt32LittleEndian(stream, NoNextIfd);
         external.WriteTo(stream);
     }
 

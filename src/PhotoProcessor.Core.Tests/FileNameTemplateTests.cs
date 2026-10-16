@@ -72,7 +72,8 @@ public class FileNameTemplateTests
         var previous = CultureInfo.CurrentCulture;
         try
         {
-            CultureInfo.CurrentCulture = new CultureInfo("ar-SA"); // non-Gregorian calendar
+            var nonGregorianCulture = new CultureInfo("ar-SA");
+            CultureInfo.CurrentCulture = nonGregorianCulture;
             Assert.Equal("2021-04-08 19.41.08 1", template.Render(Full, 1));
         }
         finally

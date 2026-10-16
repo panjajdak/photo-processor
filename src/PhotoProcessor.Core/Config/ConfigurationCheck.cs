@@ -7,21 +7,18 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using PhotoProcessor.Core.Naming;
 
-/// <summary>
-/// The configuration has errors; <see cref="Problems"/> lists all of them.
-/// </summary>
+/// <summary>Thrown when the configuration has errors; lists all of them.</summary>
 public sealed class InvalidConfigurationException(IReadOnlyList<string> problems)
     : Exception("Invalid configuration:" + Environment.NewLine + string.Join(Environment.NewLine, problems.Select(p => "  - " + p)))
 {
+    /// <summary>Every problem found in the configuration.</summary>
     public IReadOnlyList<string> Problems { get; } = problems;
 }
 
+/// <summary>Validates a configuration before any file is touched.</summary>
 public static class ConfigurationCheck
 {
-    /// <summary>
-    /// Returns every problem found in <paramref name="config"/>; empty when it is valid.
-    /// Folders are not checked because they may be on a network share that is offline.
-    /// </summary>
+    /// <summary>Returns all problems in the configuration; empty when it is valid.</summary>
     public static IReadOnlyList<string> Validate(Configuration config)
     {
         var problems = new List<string>();
@@ -71,9 +68,7 @@ public static class ConfigurationCheck
         return problems;
     }
 
-    /// <summary>
-    /// Throws <see cref="InvalidConfigurationException"/> when <paramref name="config"/> has problems.
-    /// </summary>
+    /// <summary>Throws <see cref="InvalidConfigurationException"/> when the configuration has problems.</summary>
     public static void EnsureValid(Configuration config)
     {
         var problems = Validate(config);
@@ -83,9 +78,7 @@ public static class ConfigurationCheck
         }
     }
 
-    /// <summary>
-    /// Example names the configured template produces, for showing the configuration to the user.
-    /// </summary>
+    /// <summary>Sample file names the configured template produces.</summary>
     public static IReadOnlyList<(string Description, string FileName)> ExampleNames(Configuration config)
     {
         var template = FileNameTemplate.Parse(config.FileNameTemplate);

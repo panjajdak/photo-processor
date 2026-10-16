@@ -7,9 +7,6 @@ internal static class ConfigLoader
 {
     public const string EnvironmentVariable = "PHOTOPROCESSOR_CONFIG";
 
-    /// <summary>
-    /// Config file to use: --config, then the PHOTOPROCESSOR_CONFIG environment variable, then config.json next to the executable.
-    /// </summary>
     public static (string Path, string Source) Locate(FileInfo? option)
     {
         if (option != null)
@@ -26,7 +23,6 @@ internal static class ConfigLoader
         return (Path.Combine(AppContext.BaseDirectory, "config.json"), "default");
     }
 
-    /// <exception cref="UsageException">The file is missing or not valid JSON.</exception>
     public static Configuration Load(FileInfo? option)
     {
         var (path, source) = Locate(option);
@@ -52,7 +48,4 @@ internal static class ConfigLoader
     }
 }
 
-/// <summary>
-/// A problem with the command line or configuration that the user can fix; reported without a stack trace.
-/// </summary>
 internal sealed class UsageException(string message) : Exception(message);

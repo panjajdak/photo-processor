@@ -4,9 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-/// <summary>
-/// The file system as the run sees it: real files, plus the moves and copies of a dry run that were only planned.
-/// </summary>
 internal sealed class FileSystemView
 {
     private readonly HashSet<string> planned = new(StringComparer.OrdinalIgnoreCase);

@@ -2,9 +2,6 @@ namespace PhotoProcessor.Console.Cli;
 
 using System.CommandLine;
 
-/// <summary>
-/// Options available on every command.
-/// </summary>
 internal static class CommonOptions
 {
     public static readonly Option<FileInfo> Config = new Option<FileInfo>("--config", "-c")
@@ -32,7 +29,6 @@ internal static class CommonOptions
         root.Add(Verbose);
         root.Add(Quiet);
 
-        // Validators only run for the command that was invoked, so every command gets its own.
         foreach (var command in root.Subcommands)
         {
             command.Validators.Add(result =>
@@ -50,9 +46,6 @@ internal static class CommonOptions
             : parse.GetValue(Verbose) ? Verbosity.Verbose
             : Verbosity.Normal;
 
-    /// <summary>
-    /// --dry-run for commands that change files.
-    /// </summary>
     public static Option<bool> DryRun(string description) => new("--dry-run", "-n")
     {
         Description = description,

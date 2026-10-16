@@ -1,9 +1,8 @@
 namespace PhotoProcessor.Core.Config;
 
+/// <summary>Behavior switches of a run.</summary>
 public class Options
 {
-    /// <summary>
-    /// Copies files to output directory instead of moving them
-    /// </summary>
+    /// <summary>Copy files to the output folder instead of moving them.</summary>
     public bool CopyingEnabled { get; set; }
 }

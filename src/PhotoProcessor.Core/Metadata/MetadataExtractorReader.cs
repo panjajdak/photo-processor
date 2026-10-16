@@ -38,9 +38,6 @@ internal sealed partial class MetadataExtractorReader : IMetadataReader
         };
     }
 
-    /// <summary>
-    /// Parses values such as "2021-04-08T19:41:08+0200" or "2021-04-08T19:41:08+02:00".
-    /// </summary>
     internal static DateTimeOffset? ParseQuickTimeCreationDate(object? value)
     {
         switch (value)
@@ -59,12 +56,13 @@ internal sealed partial class MetadataExtractorReader : IMetadataReader
         }
     }
 
+    private static readonly DateTime UnsetQuickTimeDate = new(1904, 1, 1);
+
     private static DateTime? GetQuickTimeCreated(QuickTimeMovieHeaderDirectory? directory)
     {
-        // An unset movie header time decodes to the 1904 QuickTime epoch.
         return directory != null
             && directory.TryGetDateTime(QuickTimeMovieHeaderDirectory.TagCreated, out var created)
-            && created.Year > 1970
+            && created > UnsetQuickTimeDate
                 ? created
                 : null;
     }

@@ -8,11 +8,6 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
-/// <summary>
-/// File name pattern such as "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]".
-/// Text outside braces is literal; "[...]" is left out unless every token inside has a value;
-/// "{{", "}}", "[[" and "]]" stand for the literal characters.
-/// </summary>
 internal sealed class FileNameTemplate
 {
     public const string Default = "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]";
@@ -28,7 +23,6 @@ internal sealed class FileNameTemplate
         this.segments = segments;
     }
 
-    /// <exception cref="FormatException">The template is invalid.</exception>
     public static FileNameTemplate Parse(string template)
     {
         var segments = new List<Segment>();
@@ -109,7 +103,6 @@ internal sealed class FileNameTemplate
         FlushLiteral();
         Validate(template, segments);
 
-        // Collisions must always be resolvable, so a template without a counter gets one at the end.
         if (!AllTokens(segments).Any(t => t.Name == "counter"))
         {
             segments.Add(new Optional([new Literal(" "), new Token("counter", null)]));
@@ -118,9 +111,6 @@ internal sealed class FileNameTemplate
         return new FileNameTemplate(segments);
     }
 
-    /// <summary>
-    /// Renders the file name without extension. Counter 0 means "no counter".
-    /// </summary>
     public string Render(NameContext context, int counter)
     {
         var sb = new StringBuilder();
@@ -148,10 +138,6 @@ internal sealed class FileNameTemplate
         return sb.ToString();
     }
 
-    /// <summary>
-    /// True when <paramref name="stem"/> is what <see cref="Render"/> produces for this context with any counter.
-    /// {original} matches anything, so a file named after its original name is recognized on later runs.
-    /// </summary>
     public bool Matches(string stem, NameContext context)
     {
         var pattern = new StringBuilder("^");
@@ -236,7 +222,6 @@ internal sealed class FileNameTemplate
             throw Error(template, "it must contain {date} or {original}");
         }
 
-        // A counter that disappears with a missing value could never number collisions.
         if (segments.OfType<Optional>().Any(o => o.Segments.OfType<Token>().Any(t => t.Name == "counter") && o.Segments.OfType<Token>().Count() > 1))
         {
             throw Error(template, "{counter} cannot share an optional section with other tokens");
@@ -271,7 +256,6 @@ internal sealed class FileNameTemplate
             }
         }
 
-        // Windows silently drops trailing spaces and dots, which would break re-run detection.
         if (segments.LastOrDefault() is Literal last && (last.Text.EndsWith(' ') || last.Text.EndsWith('.')))
         {
             throw Error(template, "it must not end with a space or a dot");

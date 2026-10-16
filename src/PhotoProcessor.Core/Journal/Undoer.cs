@@ -5,16 +5,10 @@ using System.IO;
 using System.Threading;
 using PhotoProcessor.Core.Abstractions;
 
-/// <param name="Restored">Files moved back or copies removed.</param>
-/// <param name="AlreadyRestored">Entries an earlier undo already reverted.</param>
-/// <param name="Skipped">Entries left alone because the files changed since the run.</param>
-/// <param name="Cancelled">Undo was stopped early; running it again continues where it stopped.</param>
+/// <summary>Number of journal entries per outcome of an undo.</summary>
 public sealed record UndoSummary(int Restored, int AlreadyRestored, int Skipped, bool Cancelled = false);
 
-/// <summary>
-/// Reverts a run from its journal, newest operation first. Never overwrites a file and never deletes
-/// a copy unless the original is still there with identical content.
-/// </summary>
+/// <summary>Reverts a run from its journal without overwriting or losing files.</summary>
 public sealed class Undoer
 {
     private readonly ILog log;
@@ -24,11 +18,10 @@ public sealed class Undoer
         this.log = log;
     }
 
-    /// <summary>
-    /// Finds the latest journal that has not been undone in an output directory.
-    /// </summary>
+    /// <summary>Latest journal in the output folder that has not been undone.</summary>
     public static string? FindLatestJournal(string outputDirectory) => RunJournal.FindLatest(outputDirectory);
 
+    /// <summary>Reverts the run recorded in the journal, newest operation first.</summary>
     public UndoSummary Undo(string journalPath, bool dryRun = false, CancellationToken cancellationToken = default)
     {
         var entries = RunJournal.Read(journalPath);
@@ -110,7 +103,6 @@ public sealed class Undoer
             return (Outcome.AlreadyRestored, null);
         }
 
-        // The copy may be the only one left; delete it only while the original is provably intact.
         if (!File.Exists(entry.From))
         {
             return (Outcome.Skipped, $"original {entry.From} is gone, keeping the copy");

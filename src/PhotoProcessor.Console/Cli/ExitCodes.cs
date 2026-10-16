@@ -4,16 +4,12 @@ internal static class ExitCodes
 {
     public const int Success = 0;
 
-    /// <summary>The run finished, but some files failed or were skipped.</summary>
     public const int PartialFailure = 1;
 
-    /// <summary>Invalid arguments or configuration; nothing was changed.</summary>
     public const int InvalidUsage = 2;
 
-    /// <summary>An unexpected error stopped the run.</summary>
     public const int Error = 3;
 
-    /// <summary>Stopped with Ctrl+C (128 + SIGINT, as shells report it).</summary>
     public const int Cancelled = 130;
 
     public static readonly (int Code, string Meaning)[] All =

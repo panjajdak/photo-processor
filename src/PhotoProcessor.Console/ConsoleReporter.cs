@@ -10,10 +10,6 @@ internal enum Verbosity
     Verbose,
 }
 
-/// <summary>
-/// Results go to stdout; warnings, errors and the updating progress line go to stderr, so stdout can be piped or
-/// redirected cleanly. Colors are used only on a terminal and never when NO_COLOR is set.
-/// </summary>
 internal sealed class ConsoleReporter : ILog, IProgress<ProcessingProgress>
 {
     private readonly Verbosity verbosity;
@@ -49,9 +45,6 @@ internal sealed class ConsoleReporter : ILog, IProgress<ProcessingProgress>
     public void LogError(Exception ex)
         => Write(System.Console.Error, "error: " + (verbosity == Verbosity.Verbose ? ex.ToString() : ex.Message), ConsoleColor.Red);
 
-    /// <summary>
-    /// Message that is shown even in quiet mode, e.g. the final summary.
-    /// </summary>
     public void Result(string message) => Write(System.Console.Out, message, color: null);
 
     public void Report(ProcessingProgress value)
@@ -75,9 +68,6 @@ internal sealed class ConsoleReporter : ILog, IProgress<ProcessingProgress>
         }
     }
 
-    /// <summary>
-    /// Removes the progress line so the next output starts on a clean line.
-    /// </summary>
     public void ClearProgress()
     {
         lock (sync)

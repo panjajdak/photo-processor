@@ -14,17 +14,16 @@ using PhotoProcessor.Core.Metadata;
 using PhotoProcessor.Core.Naming;
 using PhotoProcessor.Core.Resolvers;
 
-/// <summary>
-/// Counts of files (not groups) by outcome.
-/// </summary>
+/// <summary>Number of files per outcome of a run.</summary>
 public sealed record ProcessingSummary(int Renamed, int AlreadyNamed, int Duplicates, int Unsupported, int Failed);
 
-/// <param name="JournalPath">Journal to undo this run with; null when nothing was moved or copied.</param>
-/// <param name="Cancelled">The run was stopped early; files not reached yet were left alone.</param>
+/// <summary>Outcome of a run, with the journal to undo it.</summary>
 public sealed record ProcessingResult(ProcessingSummary Summary, string? JournalPath, bool DryRun, bool Cancelled = false);
 
+/// <summary>Progress of the current stage of a run.</summary>
 public sealed record ProcessingProgress(string Stage, int Done, int Total);
 
+/// <summary>Renames the photos and videos in a folder.</summary>
 public class DirectoryProcessor
 {
     private readonly Configuration config;
@@ -34,7 +33,7 @@ public class DirectoryProcessor
     private readonly IDeviceNameResolver deviceResolver;
     private readonly FileNameTemplate template;
 
-    /// <exception cref="InvalidConfigurationException"><paramref name="config"/> has errors.</exception>
+    /// <summary>Creates a processor; throws <see cref="InvalidConfigurationException"/> for an invalid configuration.</summary>
     public DirectoryProcessor(Configuration config, ILog log)
         : this(config, log, new MetadataExtractorReader())
     { }
@@ -50,8 +49,7 @@ public class DirectoryProcessor
         template = FileNameTemplate.Parse(config.FileNameTemplate);
     }
 
-    /// <param name="dryRun">Report what would happen without touching any file.</param>
-    /// <param name="cancellationToken">Stops the run between files; the file being moved is always finished first.</param>
+    /// <summary>Renames, moves or copies the files of the input folder into the output folder.</summary>
     public ProcessingResult Process(
         string inputDirectory,
         string outputDirectory,
@@ -73,7 +71,6 @@ public class DirectoryProcessor
 
         var groups = Plan(ListSupportedFiles(inputDirectory, counts), counts, progress, cancellationToken);
 
-        // Groups already carrying their name stay put; they are recognized first so incoming copies of them count as duplicates.
         var pending = new List<PlannedGroup>();
         foreach (var group in groups)
         {
@@ -89,7 +86,6 @@ public class DirectoryProcessor
 
         IndexOutputDirectory(run, pending);
 
-        // Groups that end up with the same name are numbered in shooting order, so results don't depend on directory listing order.
         var ordered = pending
             .OrderBy(g => g.Context.Date)
             .ThenBy(g => g.SubSecondSortKey, StringComparer.Ordinal)
@@ -147,7 +143,6 @@ public class DirectoryProcessor
         var planned = new List<PlannedGroup>();
         var done = 0;
 
-        // A photo, its RAW/Live Photo companions and its sidecars share a stem and are renamed together.
         foreach (var group in files.GroupBy(MediaTypes.GetStem, StringComparer.OrdinalIgnoreCase))
         {
             if (cancellationToken.IsCancellationRequested)
@@ -193,9 +188,8 @@ public class DirectoryProcessor
             .Select(m => (m.Path, m.Kind, m.Metadata, Date: dateResolver.Resolve(m.Kind, m.Metadata, Path.GetFileName(m.Path), File.GetLastWriteTime(m.Path))))
             .ToList();
 
-        // The best-dated file names the group; a Live Photo or RAW+JPEG pair is named as an image.
         var primary = media
-            .OrderBy(m => m.Date.Source)
+            .OrderBy(m => m.Date.TrustRank)
             .ThenBy(m => m.Kind)
             .ThenBy(m => m.Path, StringComparer.OrdinalIgnoreCase)
             .First();
@@ -232,15 +226,11 @@ public class DirectoryProcessor
         }
         catch (Exception ex)
         {
-            // Unreadable metadata still leaves the file name and file time to date the file.
             log.LogWarning($"Could not read metadata of {path}: {ex.Message}");
             return MediaMetadata.Empty;
         }
     }
 
-    /// <summary>
-    /// Indexes files already in the output directory, except those this run is about to rename.
-    /// </summary>
     private static void IndexOutputDirectory(Run run, List<PlannedGroup> pending)
     {
         if (!Directory.Exists(run.OutputDirectory))
@@ -333,9 +323,6 @@ public class DirectoryProcessor
         run.Duplicates.Add(target, target);
     }
 
-    /// <summary>
-    /// EXIF sub-seconds are a decimal fraction ("5" means .5), so right-pad to compare them as strings.
-    /// </summary>
     private static string SubSecondSortKey(string? subSecond)
         => subSecond != null && subSecond.All(char.IsAsciiDigit) ? subSecond.PadRight(9, '0') : "";
 

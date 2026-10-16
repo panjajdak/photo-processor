@@ -4,18 +4,12 @@ using System.CommandLine;
 using System.CommandLine.Help;
 using System.CommandLine.Invocation;
 
-/// <summary>
-/// Adds extra sections (examples, exit codes, ...) after the generated help of a command.
-/// </summary>
 internal static class HelpSections
 {
     private static readonly Dictionary<Command, string> Sections = [];
 
     public static void Add(Command command, string text) => Sections[command] = text.TrimEnd();
 
-    /// <summary>
-    /// "Examples:" section with the descriptions aligned in a second column; long commands put theirs on the next line.
-    /// </summary>
     public static string Examples(params (string CommandLine, string Description)[] examples)
     {
         const int MaxColumn = 50;
@@ -41,9 +35,6 @@ internal static class HelpSections
     public static string ExitCodeList(IEnumerable<(int Code, string Meaning)> codes)
         => "Exit codes:" + Environment.NewLine + string.Join(Environment.NewLine, codes.Select(c => $"  {c.Code,-4} {c.Meaning}"));
 
-    /// <summary>
-    /// Wraps the root's help action; call after all commands are added.
-    /// </summary>
     public static void Install(RootCommand root)
     {
         var helpOption = root.Options.OfType<HelpOption>().Single();
