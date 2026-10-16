@@ -3,12 +3,9 @@ namespace PhotoProcessor.Core.Commands;
 using PhotoProcessor.Core.Dating;
 using PhotoProcessor.Core.Events;
 using PhotoProcessor.Core.IO;
-using PhotoProcessor.Core.Journal;
 
 internal sealed record CopyFileCommand(string From, string To) : IFileCommand
 {
-    public JournalOperation Operation => JournalOperation.Copy;
-
     public ExecutedCommand Execute(IFileSystem fileSystem)
     {
         fileSystem.Copy(From, To);

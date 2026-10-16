@@ -20,7 +20,7 @@ internal sealed class GroupAnalysis(
     IProcessingObserver observer)
 {
     private readonly DateResolver dateResolver = new(config);
-    private readonly DeviceNameResolver deviceNameResolver = new(config);
+    private readonly DeviceNameResolver deviceNameResolver = new(config.DeviceMapping);
 
     public IReadOnlyList<AnalyzedGroup> Analyze(IReadOnlyList<MediaGroup> groups, CancellationToken cancellationToken)
     {

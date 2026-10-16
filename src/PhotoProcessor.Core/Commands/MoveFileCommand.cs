@@ -4,12 +4,9 @@ using System.IO;
 using PhotoProcessor.Core.Dating;
 using PhotoProcessor.Core.Events;
 using PhotoProcessor.Core.IO;
-using PhotoProcessor.Core.Journal;
 
 internal sealed record MoveFileCommand(string From, string To) : IFileCommand
 {
-    public JournalOperation Operation => JournalOperation.Move;
-
     public ExecutedCommand Execute(IFileSystem fileSystem)
     {
         fileSystem.Move(From, To);

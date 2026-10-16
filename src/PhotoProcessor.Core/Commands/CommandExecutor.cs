@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using PhotoProcessor.Core.Events;
 using PhotoProcessor.Core.IO;
-using PhotoProcessor.Core.Journal;
 
 internal sealed class CommandExecutor(IFileSystem fileSystem, IProcessingObserver observer)
 {
@@ -21,7 +20,7 @@ internal sealed class CommandExecutor(IFileSystem fileSystem, IProcessingObserve
         }
     }
 
-    public void Execute(IReadOnlyList<CommandBatch> batches, RunJournal journal, string stage, CancellationToken cancellationToken)
+    public void Execute(IReadOnlyList<CommandBatch> batches, ICommandLog commandLog, string stage, CancellationToken cancellationToken)
     {
         var total = batches.Sum(b => b.Commands.Count);
         var done = 0;
@@ -37,7 +36,7 @@ internal sealed class CommandExecutor(IFileSystem fileSystem, IProcessingObserve
             {
                 try
                 {
-                    journal.Record(command.Execute(fileSystem));
+                    commandLog.Record(command.Execute(fileSystem));
                     observer.On(command.ToEvent(batch.DateSource, dryRun: false));
                 }
                 catch (Exception ex)

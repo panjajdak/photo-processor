@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using PhotoProcessor.Core.Config;
 
 internal sealed class DeviceNameResolver
 {
@@ -12,9 +11,9 @@ internal sealed class DeviceNameResolver
 
     private readonly Dictionary<string, string> deviceMapping;
 
-    public DeviceNameResolver(Configuration config)
+    public DeviceNameResolver(IReadOnlyDictionary<string, string> deviceMapping)
     {
-        deviceMapping = new Dictionary<string, string>(config.DeviceMapping, StringComparer.OrdinalIgnoreCase);
+        this.deviceMapping = new Dictionary<string, string>(deviceMapping, StringComparer.OrdinalIgnoreCase);
     }
 
     public string? Resolve(string? deviceName)

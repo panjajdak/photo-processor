@@ -17,7 +17,7 @@ public static class RunHistory
         => RunJournal.ListAll(fileSystem, outputDirectory)
             .Select(path =>
             {
-                var operations = RunJournal.Read(fileSystem, path).Select(e => e.Command.Operation).ToList();
+                var operations = RunJournal.Read(fileSystem, path).Select(e => RunJournal.OperationOf(e.Command)).ToList();
                 return new RunInfo(
                     path,
                     ParseStarted(path, fileSystem),

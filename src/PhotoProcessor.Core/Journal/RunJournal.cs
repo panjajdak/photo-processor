@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 using PhotoProcessor.Core.Commands;
 using PhotoProcessor.Core.IO;
 
-internal sealed class RunJournal(IFileSystem fileSystem, string outputDirectory)
+internal sealed class RunJournal(IFileSystem fileSystem, string outputDirectory) : ICommandLog
 {
     public const string FolderName = ".photoprocessor";
     public const string TimestampFormat = "yyyyMMdd-HHmmss-fff";
@@ -27,7 +27,7 @@ internal sealed class RunJournal(IFileSystem fileSystem, string outputDirectory)
     {
         Path ??= Start();
         var command = executed.Command;
-        var entry = new JournalEntry(command.Operation, command.From, command.To, executed.Size, executed.ModifiedUtc);
+        var entry = new JournalEntry(OperationOf(command), command.From, command.To, executed.Size, executed.ModifiedUtc);
         fileSystem.AppendLine(Path, JsonSerializer.Serialize(entry, JsonOptions));
     }
 
@@ -64,6 +64,9 @@ internal sealed class RunJournal(IFileSystem fileSystem, string outputDirectory)
         fileSystem.CreateDirectory(runs);
         return System.IO.Path.Combine(runs, DateTime.Now.ToString(TimestampFormat) + ".jsonl");
     }
+
+    public static JournalOperation OperationOf(IFileCommand command)
+        => command is CopyFileCommand ? JournalOperation.Copy : JournalOperation.Move;
 
     private static ExecutedCommand ToExecutedCommand(JournalEntry entry)
     {
