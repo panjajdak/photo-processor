@@ -8,37 +8,6 @@ using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Media;
 using PhotoProcessor.Core.Metadata;
 
-internal enum DateSource
-{
-    ExifOriginal,
-    QuickTimeCreationDate,
-    ExifDigitized,
-    QuickTimeUtc,
-    QuickTimeLocal,
-    FileName,
-    ExifModified,
-    FileNameDateOnly,
-    FileModified,
-}
-
-internal readonly record struct ResolvedDate(DateTime Value, DateSource Source)
-{
-    private static readonly DateSource[] SourcesMostTrustworthyFirst =
-    [
-        DateSource.ExifOriginal,
-        DateSource.QuickTimeCreationDate,
-        DateSource.ExifDigitized,
-        DateSource.QuickTimeUtc,
-        DateSource.QuickTimeLocal,
-        DateSource.FileName,
-        DateSource.ExifModified,
-        DateSource.FileNameDateOnly,
-        DateSource.FileModified,
-    ];
-
-    public int TrustRank => Array.IndexOf(SourcesMostTrustworthyFirst, Source);
-}
-
 internal sealed class DateResolver
 {
     private readonly TimeZoneInfo timeZone;

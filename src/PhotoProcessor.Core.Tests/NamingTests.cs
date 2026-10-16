@@ -1,7 +1,7 @@
 namespace PhotoProcessor.Core.Tests;
 
 using PhotoProcessor.Core.Config;
-using PhotoProcessor.Core.Resolvers;
+using PhotoProcessor.Core.Naming;
 
 public class NamingTests
 {

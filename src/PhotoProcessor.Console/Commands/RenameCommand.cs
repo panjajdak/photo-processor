@@ -111,8 +111,8 @@ internal static class RenameCommand
                 throw new UsageException($"Output path is a file, not a folder: {outputDirectory}");
             }
 
-            var processor = new DirectoryProcessor(config, reporter);
-            var result = processor.Process(inputDirectory, outputDirectory, dryRun, reporter, cancellationToken);
+            var runner = new RenameRunner(config, reporter);
+            var result = runner.Run(inputDirectory, outputDirectory, dryRun, cancellationToken);
             reporter.ClearProgress();
 
             PrintSummary(reporter, result, copy: config.Options.CopyingEnabled);

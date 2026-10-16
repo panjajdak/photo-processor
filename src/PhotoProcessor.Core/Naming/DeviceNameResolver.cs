@@ -1,13 +1,12 @@
-namespace PhotoProcessor.Core.Resolvers;
+namespace PhotoProcessor.Core.Naming;
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using PhotoProcessor.Core.Abstractions;
 using PhotoProcessor.Core.Config;
 
-internal class DeviceNameResolver : IDeviceNameResolver
+internal sealed class DeviceNameResolver
 {
     private static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
 
