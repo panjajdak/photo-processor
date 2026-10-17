@@ -7,14 +7,6 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using PhotoProcessor.Core.Naming;
 
-/// <summary>Thrown when the configuration has errors; lists all of them.</summary>
-public sealed class InvalidConfigurationException(IReadOnlyList<string> problems)
-    : Exception("Invalid configuration:" + Environment.NewLine + string.Join(Environment.NewLine, problems.Select(p => "  - " + p)))
-{
-    /// <summary>Every problem found in the configuration.</summary>
-    public IReadOnlyList<string> Problems { get; } = problems;
-}
-
 /// <summary>Validates a configuration before any file is touched.</summary>
 public static class ConfigurationCheck
 {

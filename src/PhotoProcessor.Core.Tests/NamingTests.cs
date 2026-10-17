@@ -1,7 +1,7 @@
 namespace PhotoProcessor.Core.Tests;
 
 using PhotoProcessor.Core.Config;
-using PhotoProcessor.Core.Resolvers;
+using PhotoProcessor.Core.Naming;
 
 public class NamingTests
 {
@@ -21,7 +21,7 @@ public class NamingTests
     [InlineData(null, null)]
     public void DeviceNameResolver_MapsCaseInsensitivelyAndSanitizes(string? model, string? expected)
     {
-        var resolver = new DeviceNameResolver(Config);
+        var resolver = new DeviceNameResolver(Config.DeviceMapping);
 
         Assert.Equal(expected, resolver.Resolve(model));
     }

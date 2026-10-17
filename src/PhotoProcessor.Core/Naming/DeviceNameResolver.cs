@@ -1,21 +1,19 @@
-namespace PhotoProcessor.Core.Resolvers;
+namespace PhotoProcessor.Core.Naming;
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using PhotoProcessor.Core.Abstractions;
-using PhotoProcessor.Core.Config;
 
-internal class DeviceNameResolver : IDeviceNameResolver
+internal sealed class DeviceNameResolver
 {
     private static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
 
     private readonly Dictionary<string, string> deviceMapping;
 
-    public DeviceNameResolver(Configuration config)
+    public DeviceNameResolver(IReadOnlyDictionary<string, string> deviceMapping)
     {
-        deviceMapping = new Dictionary<string, string>(config.DeviceMapping, StringComparer.OrdinalIgnoreCase);
+        this.deviceMapping = new Dictionary<string, string>(deviceMapping, StringComparer.OrdinalIgnoreCase);
     }
 
     public string? Resolve(string? deviceName)

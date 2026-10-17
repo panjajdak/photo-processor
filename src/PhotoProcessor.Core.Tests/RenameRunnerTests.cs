@@ -3,7 +3,7 @@ namespace PhotoProcessor.Core.Tests;
 using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Tests.Support;
 
-public sealed class DirectoryProcessorTests : IDisposable
+public sealed class RenameRunnerTests : IDisposable
 {
     private static readonly DateTime FileTime = new(2030, 1, 1, 12, 0, 0);
 
@@ -312,5 +312,5 @@ public sealed class DirectoryProcessorTests : IDisposable
     }
 
     private ProcessingSummary Process(string inputDirectory, string outputDirectory)
-        => new DirectoryProcessor(config, new TestLog()).Process(inputDirectory, outputDirectory).Summary;
+        => new RenameRunner(config, new TestObserver()).Run(inputDirectory, outputDirectory).Summary;
 }

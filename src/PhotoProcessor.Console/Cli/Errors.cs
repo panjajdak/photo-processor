@@ -9,10 +9,10 @@ internal static class Errors
         switch (ex)
         {
             case UsageException or InvalidConfigurationException:
-                reporter.LogError(new Exception(ex.Message));
+                reporter.Error(ex.Message);
                 return ExitCodes.InvalidUsage;
             default:
-                reporter.LogError(ex);
+                reporter.Error(ex);
                 return ExitCodes.Error;
         }
     }

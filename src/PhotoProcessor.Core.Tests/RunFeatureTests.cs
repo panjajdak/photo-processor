@@ -1,6 +1,7 @@
 namespace PhotoProcessor.Core.Tests;
 
 using PhotoProcessor.Core.Config;
+using PhotoProcessor.Core.Events;
 using PhotoProcessor.Core.Journal;
 using PhotoProcessor.Core.Tests.Support;
 
@@ -10,7 +11,7 @@ public sealed class RunFeatureTests : IDisposable
 
     private readonly TempDirectory input = new();
     private readonly TempDirectory output = new();
-    private readonly TestLog log = new();
+    private readonly TestObserver observer = new();
     private readonly Configuration config = new()
     {
         TimeZone = "UTC",
@@ -35,8 +36,8 @@ public sealed class RunFeatureTests : IDisposable
         input.Write("notes.txt", [1]);
 
         var dry = Process(dryRun: true);
-        var predicted = log.Messages.Where(m => m.StartsWith("Would rename")).Select(m => m["Would rename ".Length..]).ToList();
-        log.Messages.Clear();
+        var predicted = observer.Of<FileRenamed>().Select(e => (e.From, e.To)).ToList();
+        observer.Events.Clear();
 
         Assert.Equal(["a.jpg", "b.jpg", "b.xmp", "dup.jpg", "notes.txt"], input.FileNames());
         Assert.Equal(["IMG 2021-04-08 19.41.08.jpg"], output.FileNames());
@@ -47,7 +48,8 @@ public sealed class RunFeatureTests : IDisposable
 
         Assert.Equal(real.Summary, dry.Summary);
         Assert.Equal(new ProcessingSummary(3, 0, 1, 1, 0), real.Summary);
-        Assert.Equal(predicted, log.Messages.Where(m => m.Contains(" -> ")).ToList());
+        Assert.All(observer.Of<FileRenamed>(), e => Assert.False(e.DryRun));
+        Assert.Equal(predicted, observer.Of<FileRenamed>().Select(e => (e.From, e.To)).ToList());
     }
 
     [Fact]
@@ -73,7 +75,7 @@ public sealed class RunFeatureTests : IDisposable
 
         Assert.Equal(new ProcessingSummary(0, 0, 1, 0, 0), result.Summary);
         Assert.Equal(["IMG_1.jpg"], input.FileNames());
-        Assert.Contains(log.Messages, m => m.Contains("renamed by hand.jpg"));
+        Assert.Contains(observer.Of<DuplicateSkipped>(), e => e.ExistingCopy.EndsWith("renamed by hand.jpg"));
     }
 
     [Fact]
@@ -147,7 +149,7 @@ public sealed class RunFeatureTests : IDisposable
     {
         config.FileNameTemplate = "{date:HH:mm}";
 
-        var ex = Assert.Throws<InvalidConfigurationException>(() => new DirectoryProcessor(config, log));
+        var ex = Assert.Throws<InvalidConfigurationException>(() => new RenameRunner(config, observer));
         Assert.Contains("HH:mm", ex.Message);
     }
 
@@ -156,7 +158,7 @@ public sealed class RunFeatureTests : IDisposable
     {
         input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
 
-        var result = new DirectoryProcessor(config, log).Process(input.Path, output.Path, cancellationToken: new CancellationToken(canceled: true));
+        var result = new RenameRunner(config, observer).Run(input.Path, output.Path, cancellationToken: new CancellationToken(canceled: true));
 
         Assert.True(result.Cancelled);
         Assert.Equal(["IMG_1.jpg"], input.FileNames());
@@ -170,21 +172,21 @@ public sealed class RunFeatureTests : IDisposable
         input.Write("IMG_1.dng", TestMedia.Tiff(dateTimeOriginal: Taken));
         input.Write("IMG_2.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(1)));
         using var cancellation = new CancellationTokenSource();
-        var progress = new SyncProgress(p =>
+        var cancelOnFirstRename = new TestObserver(e =>
         {
-            if (p.Stage == "Renaming")
+            if (e is ProgressChanged { Stage: "Renaming" })
             {
                 cancellation.Cancel();
             }
         });
 
-        var result = new DirectoryProcessor(config, log).Process(input.Path, output.Path, progress: progress, cancellationToken: cancellation.Token);
+        var result = new RenameRunner(config, cancelOnFirstRename).Run(input.Path, output.Path, cancellationToken: cancellation.Token);
 
         Assert.True(result.Cancelled);
         Assert.Equal(["IMG 2021-04-08 19.41.08.dng", "IMG 2021-04-08 19.41.08.jpg"], output.FileNames());
         Assert.Equal(["IMG_2.jpg"], input.FileNames());
 
-        new Undoer(log).Undo(result.JournalPath!);
+        new Undoer(observer).Undo(result.JournalPath!);
         Assert.Equal(["IMG_1.dng", "IMG_1.jpg", "IMG_2.jpg"], input.FileNames());
     }
 
@@ -195,11 +197,11 @@ public sealed class RunFeatureTests : IDisposable
         input.Write("IMG_2.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(1)));
         var result = Process();
 
-        var cancelled = new Undoer(log).Undo(result.JournalPath!, cancellationToken: new CancellationToken(canceled: true));
+        var cancelled = new Undoer(observer).Undo(result.JournalPath!, cancellationToken: new CancellationToken(canceled: true));
         Assert.Equal(new UndoSummary(0, 0, 0, Cancelled: true), cancelled);
         Assert.Equal(result.JournalPath, Undoer.FindLatestJournal(output.Path));
 
-        var resumed = new Undoer(log).Undo(result.JournalPath!);
+        var resumed = new Undoer(observer).Undo(result.JournalPath!);
         Assert.Equal(new UndoSummary(2, 0, 0), resumed);
     }
 
@@ -213,7 +215,7 @@ public sealed class RunFeatureTests : IDisposable
         config.Options.CopyingEnabled = true;
         input.Write("IMG_3.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken.AddSeconds(2)));
         var second = Process();
-        new Undoer(log).Undo(second.JournalPath!);
+        new Undoer(observer).Undo(second.JournalPath!);
 
         var runs = RunHistory.List(output.Path);
 
@@ -224,10 +226,7 @@ public sealed class RunFeatureTests : IDisposable
         Assert.Equal(first.JournalPath, runs[0].JournalPath);
     }
 
-    private sealed class SyncProgress(Action<ProcessingProgress> report) : IProgress<ProcessingProgress>
-    {
-        public void Report(ProcessingProgress value) => report(value);
-    }
+
 
     [Fact]
     public void Undo_RestoresOriginalNamesAndLocations()
@@ -241,7 +240,7 @@ public sealed class RunFeatureTests : IDisposable
         Assert.NotNull(result.JournalPath);
         Assert.Equal(result.JournalPath, Undoer.FindLatestJournal(output.Path));
 
-        var summary = new Undoer(log).Undo(result.JournalPath!);
+        var summary = new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(new UndoSummary(3, 0, 0), summary);
         Assert.Equal(before, input.FileNames());
@@ -258,7 +257,7 @@ public sealed class RunFeatureTests : IDisposable
         var result = Process(outputDirectory: input.Path);
         Assert.Equal(["IMG 2021-04-08 19.41.08.jpg", "IMG 2021-04-08 19.41.08.xmp"], input.FileNames());
 
-        new Undoer(log).Undo(result.JournalPath!);
+        new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(["IMG_1.jpg", "IMG_1.xmp"], input.FileNames());
     }
@@ -270,7 +269,7 @@ public sealed class RunFeatureTests : IDisposable
         input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
 
         var result = Process();
-        var summary = new Undoer(log).Undo(result.JournalPath!);
+        var summary = new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(new UndoSummary(1, 0, 0), summary);
         Assert.Equal(["IMG_1.jpg"], input.FileNames());
@@ -285,7 +284,7 @@ public sealed class RunFeatureTests : IDisposable
 
         var result = Process();
         File.Delete(original);
-        var summary = new Undoer(log).Undo(result.JournalPath!);
+        var summary = new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(new UndoSummary(0, 0, 1), summary);
         Assert.Equal(["IMG 2021-04-08 19.41.08.jpg"], output.FileNames());
@@ -299,12 +298,12 @@ public sealed class RunFeatureTests : IDisposable
 
         var result = Process();
         File.AppendAllText(Path.Combine(output.Path, "IMG 2021-04-08 19.41.09.jpg"), "edited");
-        var summary = new Undoer(log).Undo(result.JournalPath!);
+        var summary = new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(new UndoSummary(1, 0, 1), summary);
         Assert.Equal(["IMG_1.jpg"], input.FileNames());
         Assert.Equal(result.JournalPath, Undoer.FindLatestJournal(output.Path));
-        Assert.Contains(log.Warnings, w => w.Contains("modified"));
+        Assert.Contains(observer.Of<UndoSkipped>(), e => e.Reason.Contains("modified"));
     }
 
     [Fact]
@@ -314,7 +313,7 @@ public sealed class RunFeatureTests : IDisposable
 
         var result = Process();
         input.Write("IMG_1.jpg", [9, 9, 9]);
-        var summary = new Undoer(log).Undo(result.JournalPath!);
+        var summary = new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(new UndoSummary(0, 0, 1), summary);
         Assert.Equal([9, 9, 9], File.ReadAllBytes(Path.Combine(input.Path, "IMG_1.jpg")));
@@ -329,7 +328,7 @@ public sealed class RunFeatureTests : IDisposable
 
         var result = Process();
         File.Move(Path.Combine(output.Path, "IMG 2021-04-08 19.41.08.jpg"), Path.Combine(input.Path, "IMG_1.jpg"));
-        var summary = new Undoer(log).Undo(result.JournalPath!);
+        var summary = new Undoer(observer).Undo(result.JournalPath!);
 
         Assert.Equal(new UndoSummary(1, 1, 0), summary);
         Assert.Equal(["IMG_1.jpg", "IMG_2.jpg"], input.FileNames());
@@ -341,7 +340,7 @@ public sealed class RunFeatureTests : IDisposable
         input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
 
         var result = Process();
-        var summary = new Undoer(log).Undo(result.JournalPath!, dryRun: true);
+        var summary = new Undoer(observer).Undo(result.JournalPath!, dryRun: true);
 
         Assert.Equal(new UndoSummary(1, 0, 0), summary);
         Assert.Single(output.FileNames());
@@ -369,11 +368,11 @@ public sealed class RunFeatureTests : IDisposable
         var second = Process();
 
         Assert.Equal(second.JournalPath, Undoer.FindLatestJournal(output.Path));
-        new Undoer(log).Undo(second.JournalPath!);
+        new Undoer(observer).Undo(second.JournalPath!);
         Assert.Equal(first.JournalPath, Undoer.FindLatestJournal(output.Path));
         Assert.Equal(["IMG_2.jpg"], input.FileNames());
     }
 
     private ProcessingResult Process(bool dryRun = false, string? outputDirectory = null)
-        => new DirectoryProcessor(config, log).Process(input.Path, outputDirectory ?? output.Path, dryRun);
+        => new RenameRunner(config, observer).Run(input.Path, outputDirectory ?? output.Path, dryRun);
 }

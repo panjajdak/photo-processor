@@ -1,20 +1,20 @@
-namespace PhotoProcessor.Core;
+namespace PhotoProcessor.Core.IO;
 
 using System;
 using System.IO;
 
 internal static class FileComparer
 {
-    public static bool AreIdentical(string a, string b)
+    public static bool AreIdentical(IFileSystem fileSystem, string a, string b)
     {
-        if (new FileInfo(a).Length != new FileInfo(b).Length)
+        if (fileSystem.GetFacts(a).Length != fileSystem.GetFacts(b).Length)
         {
             return false;
         }
 
         const int BufferSize = 1 << 16;
-        using var streamA = new FileStream(a, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-        using var streamB = new FileStream(b, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+        using var streamA = fileSystem.OpenRead(a);
+        using var streamB = fileSystem.OpenRead(b);
         var bufferA = new byte[BufferSize];
         var bufferB = new byte[BufferSize];
 
