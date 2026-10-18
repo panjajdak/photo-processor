@@ -93,7 +93,7 @@ internal static class ConfigCommand
             if (EditorLauncher.ConfiguredEditor is { } editor)
             {
                 EditorLauncher.OpenAndWait(editor, location.Path);
-                return ReportValidity(reporter, ConfigStore.Default.Load(configOption));
+                return ReportValidity(reporter, ConfigStore.Default.Load(configOption, reporter.Warning));
             }
 
             EditorLauncher.OpenWithDefaultApp(location.Path);
@@ -130,7 +130,7 @@ internal static class ConfigCommand
         var command = new Command("validate", "Check the config without printing it; the exit code tells whether it is valid.");
         command.SetAction(parse => Run(parse, reporter =>
         {
-            ConfigurationCheck.EnsureValid(ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config)));
+            ConfigurationCheck.EnsureValid(ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config), reporter.Warning));
             return ExitCodes.Success;
         }));
         return command;
@@ -139,7 +139,7 @@ internal static class ConfigCommand
     private static Command CreateSet()
     {
         var key = new Argument<string>("key") { Description = $"Setting to change: {string.Join(", ", SettingKeys.Names)}." };
-        var value = new Argument<string>("value") { Description = "New value; \"\" clears folders and the time zone." };
+        var value = new Argument<string>("value") { Description = "New value; \"\" clears the time zone." };
         var command = new Command("set", "Change one setting in the config file.") { key, value };
         command.SetAction(parse => Run(parse, reporter =>
         {
@@ -157,7 +157,6 @@ internal static class ConfigCommand
         var app = Program.AppName;
         HelpSections.Add(command, $"""
             {HelpSections.Examples(
-                ($@"{app} config set InputDirectory \\NAS\photos\in", "Default folder for \"rename\""),
                 ($"{app} config set TimeZone Europe/Warsaw", "Time zone for video times"),
                 ($"{app} config set TimeZone \"\"", "Back to the system time zone"),
                 ($"{app} config set FileNameTemplate \"{{date:yyyyMMdd_HHmmss}}[_{{device}}]\"", "New name pattern"),
@@ -173,7 +172,7 @@ internal static class ConfigCommand
     {
         var configOption = parse.GetValue(CommonOptions.Config);
         var location = ConfigStore.Default.Locate(configOption);
-        var config = ConfigStore.Default.Load(configOption);
+        var config = ConfigStore.Default.Load(configOption, reporter.Warning);
 
         if (asJson)
         {
@@ -183,8 +182,6 @@ internal static class ConfigCommand
 
         var defaults = new Configuration();
         reporter.Result($"Config file:      {location.Path} ({location.Describe()})");
-        reporter.Result($"Input folder:     {config.InputDirectory ?? "(not set; pass one on the command line)"}");
-        reporter.Result($"Output folder:    {config.OutputDirectory ?? "(not set; same as input)"}");
         reporter.Result($"Mode:             {(config.Options.CopyingEnabled ? "copy" : "move")}");
         reporter.Result($"Time zone:        {(string.IsNullOrWhiteSpace(config.TimeZone) ? $"system ({TimeZoneInfo.Local.Id})" : config.TimeZone)}");
         reporter.Result($"Prefixes:         images \"{config.ImagePrefix}\", videos \"{config.VideoPrefix}\"");

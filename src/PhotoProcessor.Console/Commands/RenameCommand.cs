@@ -13,14 +13,12 @@ internal static class RenameCommand
     {
         var input = new Argument<DirectoryInfo>("input")
         {
-            Description = "Folder with the photos and videos to rename. Default: InputDirectory from the config.",
-            Arity = ArgumentArity.ZeroOrOne,
+            Description = "Folder with the photos and videos to rename.",
         }.AcceptExistingOnly();
 
         var output = new Argument<DirectoryInfo>("output")
         {
-            Description = "Folder to put the renamed files in; created if missing. "
-                + "Default: the input folder when <input> is given (rename in place), otherwise OutputDirectory from the config.",
+            Description = "Folder to put the renamed files in; created if missing. Default: the input folder (rename in place).",
             Arity = ArgumentArity.ZeroOrOne,
         }.AcceptLegalFilePathsOnly();
 
@@ -40,7 +38,7 @@ internal static class RenameCommand
         };
 
         command.SetAction(parse => Run(
-            parse.GetValue(input),
+            parse.GetValue(input)!,
             parse.GetValue(output),
             parse.GetValue(copy),
             parse.GetValue(dryRun),
@@ -51,7 +49,6 @@ internal static class RenameCommand
         var defaultTemplate = new Configuration().FileNameTemplate;
         HelpSections.Add(command, $"""
             {HelpSections.Examples(
-                ($"{app} rename", "Use InputDirectory and OutputDirectory from the config"),
                 ($@"{app} rename D:\Camera", @"Rename the files in D:\Camera in place"),
                 ($@"{app} rename D:\Camera D:\Photos", @"Move the renamed files to D:\Photos"),
                 ($@"{app} rename D:\Camera --dry-run", "Preview the new names without changing anything"),
@@ -84,23 +81,19 @@ internal static class RenameCommand
         return command;
     }
 
-    private static int Run(DirectoryInfo? input, DirectoryInfo? output, bool copy, bool dryRun, ParseResult parse, CancellationToken cancellationToken)
+    private static int Run(DirectoryInfo input, DirectoryInfo? output, bool copy, bool dryRun, ParseResult parse, CancellationToken cancellationToken)
     {
         var reporter = new ConsoleReporter(CommonOptions.GetVerbosity(parse));
         try
         {
-            var config = ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config));
+            var config = ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config), reporter.Warning);
             if (copy)
             {
                 config.Options.CopyingEnabled = true;
             }
 
-            var inputDirectory = input?.FullName ?? config.InputDirectory;
-            var outputDirectory = output?.FullName ?? (input != null ? input.FullName : config.OutputDirectory ?? config.InputDirectory);
-            if (string.IsNullOrWhiteSpace(inputDirectory) || string.IsNullOrWhiteSpace(outputDirectory))
-            {
-                throw new UsageException($"No input folder: pass one, or set a default with \"{Program.AppName} config set InputDirectory <folder>\".");
-            }
+            var inputDirectory = input.FullName;
+            var outputDirectory = output?.FullName ?? inputDirectory;
 
             if (!Directory.Exists(inputDirectory))
             {

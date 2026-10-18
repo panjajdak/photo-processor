@@ -7,8 +7,6 @@ internal static class SettingKeys
 {
     private static readonly Dictionary<string, Setting> Settings = new Setting[]
     {
-        new("InputDirectory", c => c.InputDirectory, (c, v) => c.InputDirectory = EmptyToNull(v)),
-        new("OutputDirectory", c => c.OutputDirectory, (c, v) => c.OutputDirectory = EmptyToNull(v)),
         new("FileNameTemplate", c => c.FileNameTemplate, (c, v) => c.FileNameTemplate = v),
         new("ImagePrefix", c => c.ImagePrefix, (c, v) => c.ImagePrefix = v),
         new("VideoPrefix", c => c.VideoPrefix, (c, v) => c.VideoPrefix = v),

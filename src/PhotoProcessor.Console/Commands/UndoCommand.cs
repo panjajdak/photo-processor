@@ -2,7 +2,6 @@ namespace PhotoProcessor.Console.Commands;
 
 using System.CommandLine;
 using PhotoProcessor.Console.Cli;
-using PhotoProcessor.Console.Settings;
 using PhotoProcessor.Core.Journal;
 
 internal static class UndoCommand
@@ -12,7 +11,7 @@ internal static class UndoCommand
         var target = new Argument<FileSystemInfo>("target")
         {
             Description = "Output folder whose latest run to revert, or a specific journal file (*.jsonl). "
-                + "Default: OutputDirectory from the config.",
+                + "Default: the current folder.",
             Arity = ArgumentArity.ZeroOrOne,
         }.AcceptExistingOnly();
 
@@ -29,7 +28,7 @@ internal static class UndoCommand
         var app = Program.AppName;
         HelpSections.Add(command, $"""
             {HelpSections.Examples(
-                ($"{app} undo", "Revert the latest run in OutputDirectory from the config"),
+                ($"{app} undo", "Revert the latest run that wrote to the current folder"),
                 ($@"{app} undo D:\Photos", @"Revert the latest run that wrote to D:\Photos"),
                 ($@"{app} undo D:\Photos --dry-run", "Preview what would be restored"),
                 ($@"{app} undo ""D:\Photos\.photoprocessor\runs\20261015-215318-344.jsonl""", $"Revert one specific run (see \"{app} history\")"))}
@@ -56,7 +55,7 @@ internal static class UndoCommand
         var reporter = new ConsoleReporter(CommonOptions.GetVerbosity(parse));
         try
         {
-            var journal = ResolveJournal(target, parse);
+            var journal = ResolveJournal(target);
             var summary = new Undoer(reporter).Undo(journal, dryRun, cancellationToken);
 
             if (summary.Cancelled)
@@ -83,24 +82,14 @@ internal static class UndoCommand
         }
     }
 
-    private static string ResolveJournal(FileSystemInfo? target, ParseResult parse)
+    private static string ResolveJournal(FileSystemInfo? target)
     {
         if (target is FileInfo file)
         {
             return file.FullName;
         }
 
-        string directory;
-        if (target is DirectoryInfo folder)
-        {
-            directory = folder.FullName;
-        }
-        else
-        {
-            var config = ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config));
-            directory = config.OutputDirectory ?? config.InputDirectory
-                ?? throw new UsageException("No folder given and no OutputDirectory in the config.");
-        }
+        var directory = target?.FullName ?? Directory.GetCurrentDirectory();
 
         return Undoer.FindLatestJournal(directory)
             ?? throw new UsageException($"No run left to undo in {directory}");

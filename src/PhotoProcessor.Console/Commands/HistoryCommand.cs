@@ -3,7 +3,6 @@ namespace PhotoProcessor.Console.Commands;
 using System.CommandLine;
 using System.Globalization;
 using PhotoProcessor.Console.Cli;
-using PhotoProcessor.Console.Settings;
 using PhotoProcessor.Core.Journal;
 
 internal static class HistoryCommand
@@ -12,7 +11,7 @@ internal static class HistoryCommand
     {
         var folder = new Argument<DirectoryInfo>("folder")
         {
-            Description = "Output folder to list the runs of. Default: OutputDirectory from the config.",
+            Description = "Output folder to list the runs of. Default: the current folder.",
             Arity = ArgumentArity.ZeroOrOne,
         }.AcceptExistingOnly();
 
@@ -26,7 +25,7 @@ internal static class HistoryCommand
         var app = Program.AppName;
         HelpSections.Add(command, $"""
             {HelpSections.Examples(
-                ($"{app} history", "Runs in OutputDirectory from the config"),
+                ($"{app} history", "Runs that wrote to the current folder"),
                 ($@"{app} history D:\Photos", @"Runs that wrote to D:\Photos"))}
 
             Runs are stored in "<folder>\.photoprocessor\runs". A run that only skipped files leaves no entry.
@@ -40,17 +39,7 @@ internal static class HistoryCommand
         var reporter = new ConsoleReporter(CommonOptions.GetVerbosity(parse));
         try
         {
-            string directory;
-            if (folder != null)
-            {
-                directory = folder.FullName;
-            }
-            else
-            {
-                var config = ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config));
-                directory = config.OutputDirectory ?? config.InputDirectory
-                    ?? throw new UsageException("No folder given and no OutputDirectory in the config.");
-            }
+            var directory = folder?.FullName ?? Directory.GetCurrentDirectory();
 
             var runs = RunHistory.List(directory);
             if (runs.Count == 0)

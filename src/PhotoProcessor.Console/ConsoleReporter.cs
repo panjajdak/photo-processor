@@ -101,7 +101,7 @@ internal sealed class ConsoleReporter : IProcessingObserver
         }
     }
 
-    private void Warning(string message)
+    public void Warning(string message)
     {
         if (verbosity != Verbosity.Quiet)
         {

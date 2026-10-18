@@ -6,12 +6,6 @@ using PhotoProcessor.Core.Naming;
 /// <summary>Settings read from config.json.</summary>
 public class Configuration
 {
-    /// <summary>Folder to process when none is given on the command line.</summary>
-    public string? InputDirectory { get; set; }
-
-    /// <summary>Folder for renamed files; defaults to the input folder.</summary>
-    public string? OutputDirectory { get; set; }
-
     /// <summary>Pattern for new file names, e.g. "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}]".</summary>
     public string FileNameTemplate { get; set; } = Naming.FileNameTemplate.Default;
 

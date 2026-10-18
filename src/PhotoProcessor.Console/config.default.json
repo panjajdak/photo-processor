@@ -1,8 +1,4 @@
 {
-    // Folders used by "photoprocessor rename" without arguments. Leave empty to always pass them.
-    "InputDirectory": null,
-    "OutputDirectory": null,
-
     // Name pattern. Tokens: {type} {date:FORMAT} {device} {make} {model} {original} {counter:FORMAT}; [ ... ] is optional.
     "FileNameTemplate": "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]",
     "ImagePrefix": "IMG",

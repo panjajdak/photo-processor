@@ -50,12 +50,19 @@ internal sealed class ConfigStore(string userConfigPath, string portableConfigPa
             : new ConfigLocation(userConfigPath, ConfigSource.UserProfile, Exists: false);
     }
 
-    public Configuration Load(FileInfo? option)
+    public Configuration Load(FileInfo? option, Action<string>? warn = null)
     {
         var location = Locate(option);
         if (location.Exists)
         {
-            return Parse(File.ReadAllText(location.Path), location.Path);
+            var json = File.ReadAllText(location.Path);
+            var config = Parse(json, location.Path);
+            foreach (var setting in FindUnknownSettings(json))
+            {
+                warn?.Invoke($"Unknown setting \"{setting}\" in {location.Path} is ignored.");
+            }
+
+            return config;
         }
 
         return location.Source == ConfigSource.UserProfile
@@ -85,6 +92,36 @@ internal sealed class ConfigStore(string userConfigPath, string portableConfigPa
     }
 
     public static string ToJson(Configuration config) => JsonSerializer.Serialize(config, WriteOptions);
+
+    public static IReadOnlyList<string> FindUnknownSettings(string json)
+    {
+        using var document = JsonDocument.Parse(json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        return UnknownProperties(document.RootElement, typeof(Configuration), prefix: "").ToList();
+    }
+
+    private static IEnumerable<string> UnknownProperties(JsonElement element, Type type, string prefix)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            yield break;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            var known = type.GetProperty(property.Name);
+            if (known == null)
+            {
+                yield return prefix + property.Name;
+            }
+            else if (known.PropertyType == typeof(Options))
+            {
+                foreach (var nested in UnknownProperties(property.Value, typeof(Options), prefix + property.Name + "."))
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
 
     private static Configuration Parse(string json, string source)
     {

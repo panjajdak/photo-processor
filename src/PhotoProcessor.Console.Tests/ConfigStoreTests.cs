@@ -28,8 +28,6 @@ public sealed class ConfigStoreTests : IDisposable
         var config = store.Load(null);
 
         Assert.Empty(ConfigurationCheck.Validate(config));
-        Assert.Null(config.InputDirectory);
-        Assert.Null(config.OutputDirectory);
         Assert.Empty(config.DeviceMapping);
         Assert.Equal(new Configuration().FileNameTemplate, config.FileNameTemplate);
     }
@@ -116,6 +114,34 @@ public sealed class ConfigStoreTests : IDisposable
         config.FileNameTemplate = "{nope}";
         Assert.Throws<InvalidConfigurationException>(() => ConfigStore.Save(UserPath, config));
         Assert.Equal(new Configuration().FileNameTemplate, store.Load(null).FileNameTemplate);
+    }
+
+    [Fact]
+    public void Load_WarnsAboutUnknownSettings()
+    {
+        Write(UserPath, """
+            {
+                "InputDirectory": "D:/in",
+                "TimeZon": "UTC",
+                "Options": { "CopyingEnabled": true, "Recursive": true },
+                "DeviceMapping": { "Anything Goes": "x" }
+            }
+            """);
+        var warnings = new List<string>();
+
+        var config = store.Load(null, warnings.Add);
+
+        Assert.True(config.Options.CopyingEnabled);
+        Assert.Equal(3, warnings.Count);
+        Assert.Contains(warnings, w => w.Contains("\"InputDirectory\""));
+        Assert.Contains(warnings, w => w.Contains("\"TimeZon\""));
+        Assert.Contains(warnings, w => w.Contains("\"Options.Recursive\""));
+    }
+
+    [Fact]
+    public void BuiltInDefault_HasNoUnknownSettings()
+    {
+        Assert.Empty(ConfigStore.FindUnknownSettings(ConfigStore.DefaultJson));
     }
 
     private static void Write(string path, string content)

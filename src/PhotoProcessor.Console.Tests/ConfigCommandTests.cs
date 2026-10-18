@@ -96,6 +96,27 @@ public sealed class ConfigCommandTests : IDisposable
         Assert.Contains("The config is valid.", result.Output);
     }
 
+    [Fact]
+    public void Validate_WarnsAboutLeftoverSettingsButPasses()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
+        File.WriteAllText(ConfigPath, """{ "InputDirectory": "D:/in", "TimeZone": "UTC" }""");
+
+        var result = Run("config", "validate");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("Unknown setting \"InputDirectory\"", result.Error);
+    }
+
+    [Fact]
+    public void Rename_RequiresAnInputFolder()
+    {
+        var result = Run("rename");
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("Required argument missing", result.Error);
+    }
+
     private CliResult Run(params string[] args) => Run(args, new Dictionary<string, string>());
 
     private CliResult Run(string[] args, Dictionary<string, string> environment)

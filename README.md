@@ -75,9 +75,9 @@ photoprocessor <command> [arguments] [options]
 
 | Command | What it does |
 |---|---|
-| `rename [input] [output]` | Rename the photos and videos in `input`, moving them to `output` (or renaming in place when `output` is omitted). Without arguments, uses `InputDirectory`/`OutputDirectory` from the config. |
-| `undo [folder\|journal]` | Revert the latest run that wrote to a folder, or a specific run's journal file. |
-| `history [folder]` | List the runs recorded in a folder and whether they were undone. |
+| `rename <input> [output]` | Rename the photos and videos in `input`, moving them to `output` (or renaming in place when `output` is omitted). |
+| `undo [folder\|journal]` | Revert the latest run that wrote to a folder (default: the current folder), or a specific run's journal file. |
+| `history [folder]` | List the runs recorded in a folder (default: the current folder) and whether they were undone. |
 | `config` | Show, check and change the configuration (see [Configuration](#configuration)). |
 
 | Option | Applies to | Meaning |
@@ -94,7 +94,6 @@ photoprocessor <command> [arguments] [options]
 photoprocessor rename D:\Camera --dry-run        # preview, in place
 photoprocessor rename D:\Camera D:\Photos        # rename and move
 photoprocessor rename D:\Camera D:\Photos --copy # rename copies, keep originals
-photoprocessor rename                            # folders from the config
 photoprocessor undo D:\Photos                    # revert the last run into D:\Photos
 photoprocessor history D:\Photos
 ```
@@ -120,7 +119,7 @@ Settings live in a JSON file in your user profile, `%APPDATA%\photoprocessor\con
 3. `%APPDATA%\photoprocessor\config.json`
 4. `config.json` next to the executable (for portable copies)
 
-Comments and trailing commas are allowed. An invalid config stops every command before any file is touched.
+Comments and trailing commas are allowed. An invalid config stops every command before any file is touched; settings the tool does not recognise (such as a misspelled key) are reported as warnings and ignored. Folders are always given on the command line, not in the config.
 
 | Command | What it does |
 |---|---|
@@ -129,7 +128,7 @@ Comments and trailing commas are allowed. An invalid config stops every command 
 | `config path` | Print the path of the config file in use. |
 | `config init [--force]` | Create the config from the defaults (`--force` replaces an existing one). |
 | `config validate` | Check the config silently; exit code `0` when valid, `2` with the problems on stderr otherwise. |
-| `config set <key> <value>` | Change `InputDirectory`, `OutputDirectory`, `FileNameTemplate`, `ImagePrefix`, `VideoPrefix`, `TimeZone` or `CopyingEnabled`. `""` clears folders and the time zone. |
+| `config set <key> <value>` | Change `FileNameTemplate`, `ImagePrefix`, `VideoPrefix`, `TimeZone` or `CopyingEnabled`. `""` clears the time zone. |
 | `config device [list]` | List the camera models with a short name. |
 | `config device add <model> <name>` | Map a camera model to a short name, or change it. |
 | `config device remove <model>` | Remove a mapping. |
@@ -137,7 +136,6 @@ Comments and trailing commas are allowed. An invalid config stops every command 
 `config set` and `config device add/remove` check the change before saving and rewrite the file, so comments in it are lost; `config edit` keeps them.
 
 ```bash
-photoprocessor config set InputDirectory \\NAS\photos\in
 photoprocessor config set TimeZone Europe/Warsaw
 photoprocessor config set FileNameTemplate "{date:yyyyMMdd_HHmmss}[_{device}]"
 photoprocessor config device add SM-S911B S23
@@ -147,8 +145,6 @@ All settings, with example values:
 
 ```jsonc
 {
-    "InputDirectory": "\\\\NAS\\photos\\in",       // default for "rename" without arguments
-    "OutputDirectory": "\\\\NAS\\photos\\out",     // defaults to the input folder
     "FileNameTemplate": "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]",
     "ImagePrefix": "IMG",                          // value of {type} for photos
     "VideoPrefix": "VID",                          // value of {type} for videos

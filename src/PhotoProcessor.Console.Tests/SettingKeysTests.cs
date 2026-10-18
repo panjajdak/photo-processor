@@ -7,12 +7,11 @@ using PhotoProcessor.Core.Config;
 public class SettingKeysTests
 {
     [Theory]
-    [InlineData("InputDirectory", @"\\NAS\in")]
-    [InlineData("outputdirectory", @"D:\Photos")]
     [InlineData("FileNameTemplate", "{date:yyyyMMdd}")]
     [InlineData("ImagePrefix", "PHOTO")]
     [InlineData("VideoPrefix", "MOVIE")]
     [InlineData("TimeZone", "Europe/Warsaw")]
+    [InlineData("timezone", "UTC")]
     [InlineData("CopyingEnabled", "true")]
     public void Set_ChangesTheSetting(string key, string value)
     {
@@ -29,23 +28,23 @@ public class SettingKeysTests
         Assert.Equal("TimeZone", SettingKeys.Set(new Configuration(), "timezone", "UTC"));
     }
 
+    [Fact]
+    public void Set_EmptyValueClearsTheTimeZone()
+    {
+        var config = new Configuration { TimeZone = "UTC" };
+
+        SettingKeys.Set(config, "TimeZone", "");
+
+        Assert.Null(SettingKeys.Get(config, "TimeZone"));
+    }
+
     [Theory]
     [InlineData("InputDirectory")]
     [InlineData("OutputDirectory")]
-    [InlineData("TimeZone")]
-    public void Set_EmptyValueClearsOptionalSettings(string key)
+    [InlineData("DeviceMapping")]
+    public void Set_RejectsUnknownKeysAndListsTheValidOnes(string key)
     {
-        var config = new Configuration { InputDirectory = "x", OutputDirectory = "y", TimeZone = "UTC" };
-
-        SettingKeys.Set(config, key, "");
-
-        Assert.Null(SettingKeys.Get(config, key));
-    }
-
-    [Fact]
-    public void Set_RejectsUnknownKeysAndListsTheValidOnes()
-    {
-        var ex = Assert.Throws<UsageException>(() => SettingKeys.Set(new Configuration(), "DeviceMapping", "x"));
+        var ex = Assert.Throws<UsageException>(() => SettingKeys.Set(new Configuration(), key, "x"));
 
         Assert.Contains("TimeZone", ex.Message);
         Assert.Contains("config edit", ex.Message);
