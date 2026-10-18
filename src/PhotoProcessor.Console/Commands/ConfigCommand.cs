@@ -44,7 +44,7 @@ internal static class ConfigCommand
             Template tokens for FileNameTemplate:
               {type}            ImagePrefix or VideoPrefix (IMG / VID)
               {date:FORMAT}     Date taken, .NET date format, e.g. {date:yyyy-MM-dd HH.mm.ss}
-              {device}          Camera model mapped through DeviceMapping (A41), or the model itself
+              {device}          Camera model (or make) from the metadata, replaced by its DeviceMapping name if listed
               {make} {model}    Raw camera make and model from the metadata
               {original}        Original file name without extension
               {counter:FORMAT}  Number for files that would get the same name; empty for the first one

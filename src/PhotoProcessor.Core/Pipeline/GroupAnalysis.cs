@@ -65,12 +65,12 @@ internal sealed class GroupAnalysis(
             .ThenBy(m => m.Path, StringComparer.OrdinalIgnoreCase)
             .First();
         var kind = media.Any(m => m.Kind == MediaKind.Image) ? MediaKind.Image : MediaKind.Video;
-        var camera = primary.Metadata.Model != null ? primary.Metadata : media.FirstOrDefault(m => m.Metadata.Model != null)?.Metadata;
+        var camera = DescribedCamera(primary, media);
 
         var context = new NameContext(
             kind == MediaKind.Video ? config.VideoPrefix : config.ImagePrefix,
             primary.Date.Value,
-            deviceNameResolver.Resolve(camera?.Model),
+            deviceNameResolver.Resolve(camera?.Model ?? camera?.Make),
             camera?.Make,
             camera?.Model,
             group.Stem);
@@ -91,6 +91,12 @@ internal sealed class GroupAnalysis(
             context,
             primary.Date.Source,
             SubSecondSortKey(primary.Metadata.SubSecondOriginal));
+    }
+
+    private static MediaMetadata? DescribedCamera(AnalyzedFile primary, IReadOnlyList<AnalyzedFile> media)
+    {
+        var primaryFirst = media.OrderBy(m => m == primary ? 0 : 1).Select(m => m.Metadata).ToList();
+        return primaryFirst.FirstOrDefault(m => m.Model != null) ?? primaryFirst.FirstOrDefault(m => m.Make != null);
     }
 
     private ResolvedDate ResolveDate(AnalyzedFile file)

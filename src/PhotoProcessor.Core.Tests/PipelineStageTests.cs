@@ -189,6 +189,37 @@ public class PipelineStageTests
         Assert.True(observer.Of<FileRenamed>().Single().DryRun);
     }
 
+    [Theory]
+    [InlineData("samsung", "SM-G990B", "SM-G990B")]
+    [InlineData("samsung", "SM-A415F", "A41")]
+    [InlineData("GoPro", null, "GoPro")]
+    [InlineData("Xiaomi", null, "Mi")]
+    [InlineData(null, null, null)]
+    public void Analysis_DeviceIsModelOrMakeWithMappingAsOverride(string? make, string? model, string? expected)
+    {
+        config.DeviceMapping["Xiaomi"] = "Mi";
+        fileSystem.Add($@"{In}\IMG_1.jpg", "jpg");
+        var reader = new FakeMetadataReader().With($@"{In}\IMG_1.jpg", new MediaMetadata { DateTimeOriginal = Taken, Make = make, Model = model });
+
+        var group = Analyze(reader, new MediaGroup("IMG_1", [$@"{In}\IMG_1.jpg"]));
+
+        Assert.Equal(expected, group.Context.Device);
+    }
+
+    [Fact]
+    public void Analysis_PrefersAModelFromAnyMemberOverAMakeOnly()
+    {
+        fileSystem.Add($@"{In}\IMG_1.HEIC", "photo");
+        fileSystem.Add($@"{In}\IMG_1.MOV", "video");
+        var reader = new FakeMetadataReader()
+            .With($@"{In}\IMG_1.HEIC", new MediaMetadata { DateTimeOriginal = Taken, Make = "Apple" })
+            .With($@"{In}\IMG_1.MOV", new MediaMetadata { Make = "Apple", Model = "iPhone 15" });
+
+        var group = Analyze(reader, new MediaGroup("IMG_1", [$@"{In}\IMG_1.HEIC", $@"{In}\IMG_1.MOV"]));
+
+        Assert.Equal("iPhone 15", group.Context.Device);
+    }
+
     private AnalyzedGroup Analyze(FakeMetadataReader reader, MediaGroup group)
         => new GroupAnalysis(config, reader, fileSystem, observer).Analyze([group], CancellationToken.None).Single();
 

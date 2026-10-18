@@ -28,7 +28,7 @@ The name format is configurable, every run can be previewed first and undone aft
 ## Features
 
 - **Date taken from metadata**: EXIF for photos, QuickTime/MP4 headers for videos, with time zone handling, falling back to dates embedded in file names and finally the file's modified time.
-- **Device names**: the camera model from the metadata, shortened through a mapping you control (`SM-A415F` → `A41`).
+- **Device names**: the camera model from the metadata, optionally replaced by a nicer name you choose (`SM-A415F` → `A41`).
 - **Modern formats**: JPG, PNG, HEIC/HEIF, AVIF, WebP, TIFF, RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF, PEF, SRW, …), MP4, MOV, M4V, 3GP.
 - **Pairs stay together**: RAW+JPEG pairs, Live Photos (HEIC+MOV) and sidecars (`.xmp`, `.aae`, `.thm`) get the same name.
 - **Customizable names**: a template such as `{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]`.
@@ -163,7 +163,7 @@ All settings, with example values:
 }
 ```
 
-**DeviceMapping** keys are the model as the camera writes it into EXIF, which is often a model code rather than the marketing name (a Galaxy S23 writes e.g. `SM-S911B`). Unmapped models are used as they are; characters not allowed in file names are replaced by `_`.
+**Device name**: every file gets the camera model recorded in its metadata (or the make, when only that is recorded), with characters not allowed in file names replaced by `_`. **DeviceMapping** is only an override for models whose recorded name you want to change; its keys are the model as the camera writes it, which is often a model code rather than the marketing name (a Galaxy S23 writes e.g. `SM-S911B`). The device is left out only when the metadata records neither model nor make.
 
 **TimeZone** is used to convert video timestamps, which phones store in UTC, to the local time shown in the name. **LocalTimeVideoPatterns** lists file name patterns of cameras that store local time instead (GoPro does), so they are not converted.
 
@@ -175,7 +175,7 @@ Text outside braces is copied as is, including spaces. Tokens in braces are repl
 |---|---|
 | `{type}` | `ImagePrefix` or `VideoPrefix` |
 | `{date:FORMAT}` | Date taken in a [.NET date format](https://learn.microsoft.com/dotnet/standard/base-types/custom-date-and-time-format-strings), e.g. `{date:yyyyMMdd_HHmmss}` |
-| `{device}` | Mapped device name (`A41`), or the raw model when unmapped |
+| `{device}` | Camera model (or make) from the metadata, replaced by its `DeviceMapping` name if listed (`SM-A415F` → `A41`) |
 | `{make}`, `{model}` | Raw camera make and model |
 | `{original}` | Original file name without extension |
 | `{counter:FORMAT}` | Number for files that would get the same name; empty for the first one, e.g. `{counter:000}` |

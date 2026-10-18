@@ -56,8 +56,9 @@ internal static class RenameCommand
 
             How files are named:
               The date taken comes from EXIF/video metadata, else from the file name (IMG_20210408_194108.jpg),
-              else from the file's modified time. The device comes from the camera model, mapped to a short
-              name through DeviceMapping. The name is built from FileNameTemplate, by default
+              else from the file's modified time. The device is the camera model as recorded in the metadata
+              (or the make when no model is recorded); a DeviceMapping entry replaces it with a nicer name, and
+              it is left out only when the file records neither. The name is built from FileNameTemplate, by default
                 {defaultTemplate}
                 -> IMG 2021-04-08 19.41.08 A41.jpg
               Run "{app} config" to see the active template with example names.
