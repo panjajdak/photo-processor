@@ -71,6 +71,14 @@ internal sealed class ConsoleReporter : IProcessingObserver
 
     public void Result(string message) => Write(System.Console.Out, message, color: null);
 
+    public void Note(string message)
+    {
+        if (verbosity != Verbosity.Quiet)
+        {
+            Write(System.Console.Error, message, color: null);
+        }
+    }
+
     public void ClearProgress()
     {
         lock (sync)

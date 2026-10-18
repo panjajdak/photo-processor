@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and test
+        run: |
+          dotnet restore src/PhotoProcessor.sln
+          dotnet build src/PhotoProcessor.sln -c Release --no-restore
+          dotnet test src/PhotoProcessor.sln -c Release --no-build
+
+      - name: Pack
+        run: dotnet pack src/PhotoProcessor.Console -c Release --no-build -o artifacts
+
+      - name: Publish to NuGet
+        if: ${{ env.NUGET_API_KEY != '' }}
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" (Get-ChildItem artifacts/*.nupkg).FullName --title "${{ github.ref_name }}" --generate-notes
