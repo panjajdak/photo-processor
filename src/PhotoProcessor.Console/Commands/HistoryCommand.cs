@@ -3,6 +3,7 @@ namespace PhotoProcessor.Console.Commands;
 using System.CommandLine;
 using System.Globalization;
 using PhotoProcessor.Console.Cli;
+using PhotoProcessor.Console.Settings;
 using PhotoProcessor.Core.Journal;
 
 internal static class HistoryCommand
@@ -46,7 +47,7 @@ internal static class HistoryCommand
             }
             else
             {
-                var config = ConfigLoader.Load(parse.GetValue(CommonOptions.Config));
+                var config = ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config));
                 directory = config.OutputDirectory ?? config.InputDirectory
                     ?? throw new UsageException("No folder given and no OutputDirectory in the config.");
             }

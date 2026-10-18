@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhotoProcessor.Console", "P
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhotoProcessor.Core.Tests", "PhotoProcessor.Core.Tests\PhotoProcessor.Core.Tests.csproj", "{7018ACA2-E1A4-4567-A65B-E79A1DBD4A39}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhotoProcessor.Console.Tests", "PhotoProcessor.Console.Tests\PhotoProcessor.Console.Tests.csproj", "{86513D04-DF89-4876-ABE7-8A2EA2432E0C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{7018ACA2-E1A4-4567-A65B-E79A1DBD4A39}.Release|x64.Build.0 = Release|Any CPU
 		{7018ACA2-E1A4-4567-A65B-E79A1DBD4A39}.Release|x86.ActiveCfg = Release|Any CPU
 		{7018ACA2-E1A4-4567-A65B-E79A1DBD4A39}.Release|x86.Build.0 = Release|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Debug|x64.Build.0 = Debug|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Debug|x86.Build.0 = Debug|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Release|x64.ActiveCfg = Release|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Release|x64.Build.0 = Release|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Release|x86.ActiveCfg = Release|Any CPU
+		{86513D04-DF89-4876-ABE7-8A2EA2432E0C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

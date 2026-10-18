@@ -1,0 +1,20 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <Authors>Jan Pajdak</Authors>
+    <Copyright>Copyright © 2021-2026 Jan Pajdak</Copyright>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerMinimumMajorMinor>2.1</MinVerMinimumMajorMinor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

@@ -2,6 +2,7 @@ namespace PhotoProcessor.Console.Commands;
 
 using System.CommandLine;
 using PhotoProcessor.Console.Cli;
+using PhotoProcessor.Console.Settings;
 using PhotoProcessor.Core;
 using PhotoProcessor.Core.Config;
 using PhotoProcessor.Core.Media;
@@ -88,7 +89,7 @@ internal static class RenameCommand
         var reporter = new ConsoleReporter(CommonOptions.GetVerbosity(parse));
         try
         {
-            var config = ConfigLoader.Load(parse.GetValue(CommonOptions.Config));
+            var config = ConfigStore.Default.Load(parse.GetValue(CommonOptions.Config));
             if (copy)
             {
                 config.Options.CopyingEnabled = true;
@@ -98,7 +99,7 @@ internal static class RenameCommand
             var outputDirectory = output?.FullName ?? (input != null ? input.FullName : config.OutputDirectory ?? config.InputDirectory);
             if (string.IsNullOrWhiteSpace(inputDirectory) || string.IsNullOrWhiteSpace(outputDirectory))
             {
-                throw new UsageException($"No input folder: pass one, or set InputDirectory in the config. See \"{Program.AppName} rename --help\".");
+                throw new UsageException($"No input folder: pass one, or set a default with \"{Program.AppName} config set InputDirectory <folder>\".");
             }
 
             if (!Directory.Exists(inputDirectory))

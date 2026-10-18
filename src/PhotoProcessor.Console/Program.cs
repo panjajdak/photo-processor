@@ -4,6 +4,7 @@ using System.CommandLine;
 using System.CommandLine.Invocation;
 using PhotoProcessor.Console.Cli;
 using PhotoProcessor.Console.Commands;
+using PhotoProcessor.Console.Settings;
 
 internal static class Program
 {
@@ -64,13 +65,13 @@ internal static class Program
                 ($@"{AppName} rename D:\Camera --dry-run", "Preview the new names"),
                 ($@"{AppName} rename D:\Camera D:\Photos", @"Rename and move the files to D:\Photos"),
                 ($@"{AppName} undo D:\Photos", "Revert that run"),
-                ($"{AppName} config", "Show and check the configuration"))}
+                ($"{AppName} config edit", "Change the configuration"))}
 
             Run "{AppName} <command> --help" for details, e.g. "{AppName} rename --help".
 
             Configuration:
-              Settings live in a JSON file: --config <file>, else ${ConfigLoader.EnvironmentVariable},
-              else config.json next to the executable. "{AppName} config" shows which one is used.
+              Settings live in {ConfigStore.Default.UserConfigPath}, unless --config or
+              ${ConfigStore.EnvironmentVariable} points elsewhere. "{AppName} config" shows which file is used.
 
             {HelpSections.ExitCodeList(ExitCodes.All)}
             """);

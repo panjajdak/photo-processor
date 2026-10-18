@@ -1,0 +1,27 @@
+{
+    // Folders used by "photoprocessor rename" without arguments. Leave empty to always pass them.
+    "InputDirectory": null,
+    "OutputDirectory": null,
+
+    // Name pattern. Tokens: {type} {date:FORMAT} {device} {make} {model} {original} {counter:FORMAT}; [ ... ] is optional.
+    "FileNameTemplate": "{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]",
+    "ImagePrefix": "IMG",
+    "VideoPrefix": "VID",
+
+    // Time zone for converting UTC video times, e.g. "Europe/Warsaw". Empty uses the system time zone.
+    "TimeZone": "",
+
+    // File names of videos whose timestamps are already local time (GoPro).
+    "LocalTimeVideoPatterns": [
+        "^GOPR\\d{4}\\.",
+        "^G[HXLP]\\d{6}\\."
+    ],
+
+    "Options": {
+        "CopyingEnabled": false
+    },
+
+    // Camera model as written in the metadata -> short name used in file names.
+    // "photoprocessor config device add SM-A415F A41" adds one.
+    "DeviceMapping": {}
+}

@@ -17,7 +17,7 @@ The name format is configurable, every run can be previewed first and undone aft
 ## Contents
 
 - [Features](#features)
-- [Getting started](#getting-started)
+- [Install](#install)
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [How files are named](#how-files-are-named)
@@ -34,21 +34,37 @@ The name format is configurable, every run can be previewed first and undone aft
 - **Customizable names**: a template such as `{type} {date:yyyy-MM-dd HH.mm.ss}[ {device}][ {counter}]`.
 - **Safe**: dry run, duplicate detection, never overwrites, re-runs change nothing, every run can be undone, Ctrl+C stops cleanly.
 
-## Getting started
+## Install
 
-Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download) or newer.
+PhotoProcessor is a [.NET tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) for Windows and needs the [.NET 10 runtime or SDK](https://dotnet.microsoft.com/download) (newer versions work too).
+
+```bash
+dotnet tool install --global PhotoProcessor
+```
+
+The `photoprocessor` command is then available in every new terminal. Update or remove it with:
+
+```bash
+dotnet tool update --global PhotoProcessor
+dotnet tool uninstall --global PhotoProcessor
+```
+
+To install from source instead, build the package and install it from the local folder:
 
 ```bash
 git clone https://github.com/panjajdak/photo-processor.git
 cd photo-processor
-dotnet publish src/PhotoProcessor.Console -c Release -o publish
+dotnet pack src/PhotoProcessor.Console -c Release -o nupkg
+dotnet tool install --global PhotoProcessor --add-source ./nupkg --prerelease
 ```
 
-This produces `publish/photoprocessor.exe` with `config.json` next to it. Edit the config (at least `DeviceMapping`, and `InputDirectory`/`OutputDirectory` if you want defaults), check it, and preview a run:
+### First steps
 
 ```bash
-publish/photoprocessor config
-publish/photoprocessor rename D:\Camera D:\Photos --dry-run
+photoprocessor config edit                          # create your config and open it in an editor
+photoprocessor config device add SM-A415F A41       # short names for your cameras
+photoprocessor rename D:\Camera D:\Photos --dry-run  # preview
+photoprocessor rename D:\Camera D:\Photos            # rename and move
 ```
 
 ## Usage
@@ -62,7 +78,7 @@ photoprocessor <command> [arguments] [options]
 | `rename [input] [output]` | Rename the photos and videos in `input`, moving them to `output` (or renaming in place when `output` is omitted). Without arguments, uses `InputDirectory`/`OutputDirectory` from the config. |
 | `undo [folder\|journal]` | Revert the latest run that wrote to a folder, or a specific run's journal file. |
 | `history [folder]` | List the runs recorded in a folder and whether they were undone. |
-| `config` | Show which config file is used, its settings with example names, and every problem in it. |
+| `config` | Show, check and change the configuration (see [Configuration](#configuration)). |
 
 | Option | Applies to | Meaning |
 |---|---|---|
@@ -97,7 +113,37 @@ Results go to stdout; warnings, errors and the progress line go to stderr (color
 
 ## Configuration
 
-The config file is found in this order: `--config <file>`, the `PHOTOPROCESSOR_CONFIG` environment variable, `config.json` next to the executable. Comments and trailing commas are allowed. `photoprocessor config` shows which file is used and validates it; an invalid config stops every command before any file is touched.
+Settings live in a JSON file in your user profile, `%APPDATA%\photoprocessor\config.json`. Until it exists, built-in defaults are used; `config edit` or `config init` creates it. The file is looked up in this order, first match wins:
+
+1. `--config <file>`
+2. the `PHOTOPROCESSOR_CONFIG` environment variable
+3. `%APPDATA%\photoprocessor\config.json`
+4. `config.json` next to the executable (for portable copies)
+
+Comments and trailing commas are allowed. An invalid config stops every command before any file is touched.
+
+| Command | What it does |
+|---|---|
+| `config` or `config show` | Show the config in use with example file names, and check it. `--json` prints the effective settings, defaults included. |
+| `config edit` | Open the config in an editor, creating it from the defaults first if needed. Uses `VISUAL`/`EDITOR` (e.g. `code --wait`) and checks the file when the editor closes; otherwise opens the default app for `.json` files, or Notepad. |
+| `config path` | Print the path of the config file in use. |
+| `config init [--force]` | Create the config from the defaults (`--force` replaces an existing one). |
+| `config validate` | Check the config silently; exit code `0` when valid, `2` with the problems on stderr otherwise. |
+| `config set <key> <value>` | Change `InputDirectory`, `OutputDirectory`, `FileNameTemplate`, `ImagePrefix`, `VideoPrefix`, `TimeZone` or `CopyingEnabled`. `""` clears folders and the time zone. |
+| `config device [list]` | List the camera models with a short name. |
+| `config device add <model> <name>` | Map a camera model to a short name, or change it. |
+| `config device remove <model>` | Remove a mapping. |
+
+`config set` and `config device add/remove` check the change before saving and rewrite the file, so comments in it are lost; `config edit` keeps them.
+
+```bash
+photoprocessor config set InputDirectory \\NAS\photos\in
+photoprocessor config set TimeZone Europe/Warsaw
+photoprocessor config set FileNameTemplate "{date:yyyyMMdd_HHmmss}[_{device}]"
+photoprocessor config device add SM-S911B S23
+```
+
+All settings, with example values:
 
 ```jsonc
 {
@@ -193,13 +239,14 @@ Every move or copy is appended to a journal in `<output>/.photoprocessor/runs/<y
 
 ## Architecture
 
-The solution has three projects:
+The solution has four projects:
 
 | Project | Role |
 |---|---|
 | `PhotoProcessor.Core` | All logic: reading metadata, choosing dates and names, planning and executing file operations, journal and undo. No console code. |
-| `PhotoProcessor.Console` | The `photoprocessor` command-line tool: argument parsing ([System.CommandLine](https://github.com/dotnet/command-line-api)), config loading, help, output formatting, exit codes, Ctrl+C. |
+| `PhotoProcessor.Console` | The `photoprocessor` .NET tool: commands and argument parsing ([System.CommandLine](https://github.com/dotnet/command-line-api)), config file location, loading and editing (`Settings`), help, output formatting, exit codes, Ctrl+C. |
 | `PhotoProcessor.Core.Tests` | xUnit tests: unit tests per component, pipeline stages on an in-memory file system, and end-to-end runs on generated JPEG/TIFF/WebP/MP4/MOV files. |
+| `PhotoProcessor.Console.Tests` | xUnit tests for config lookup, loading and editing, and the `config` commands run through the real executable. |
 
 ### Design
 
@@ -330,10 +377,24 @@ flowchart TD
 
 ## Development
 
+Requires the .NET 10 SDK or newer.
+
 ```bash
 dotnet build src/PhotoProcessor.sln
 dotnet test src/PhotoProcessor.sln
 dotnet run --project src/PhotoProcessor.Console -- rename D:\Camera --dry-run
 ```
 
-Tests generate their own minimal JPEG, TIFF/DNG, WebP, MP4 and MOV files and use temporary folders or the in-memory file system, so they need no sample photos.
+Core tests generate their own minimal JPEG, TIFF/DNG, WebP, MP4 and MOV files and use temporary folders or the in-memory file system, so they need no sample photos. Console tests run the built `photoprocessor.exe` against temporary config files.
+
+### Versions and releases
+
+Versions come from git tags via [MinVer](https://github.com/adamralph/minver): a commit tagged `v2.1.0` builds as `2.1.0`; commits after it build as pre-releases such as `2.1.1-alpha.0.3`.
+
+- **CI** (`.github/workflows/ci.yml`) builds, tests and packs every push to `master` and every pull request.
+- **Release** (`.github/workflows/release.yml`) runs when a `v*` tag is pushed: it builds, tests, packs, publishes the package to NuGet.org when the `NUGET_API_KEY` repository secret is set, and creates a GitHub release with the package attached.
+
+```bash
+git tag v2.1.0
+git push origin v2.1.0
+```

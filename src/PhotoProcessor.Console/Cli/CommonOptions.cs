@@ -1,15 +1,16 @@
 namespace PhotoProcessor.Console.Cli;
 
 using System.CommandLine;
+using PhotoProcessor.Console.Settings;
 
 internal static class CommonOptions
 {
-    public static readonly Option<FileInfo> Config = new Option<FileInfo>("--config", "-c")
+    public static readonly Option<FileInfo> Config = new("--config", "-c")
     {
-        Description = $"Config file to use. Default: ${ConfigLoader.EnvironmentVariable}, else config.json next to the executable.",
+        Description = $"Config file to use instead of ${ConfigStore.EnvironmentVariable} or the user config (see \"config --help\").",
         HelpName = "file",
         Recursive = true,
-    }.AcceptExistingOnly();
+    };
 
     public static readonly Option<bool> Verbose = new("--verbose", "-v")
     {
@@ -29,7 +30,7 @@ internal static class CommonOptions
         root.Add(Verbose);
         root.Add(Quiet);
 
-        foreach (var command in root.Subcommands)
+        foreach (var command in AllCommands(root))
         {
             command.Validators.Add(result =>
             {
@@ -40,6 +41,9 @@ internal static class CommonOptions
             });
         }
     }
+
+    private static IEnumerable<Command> AllCommands(Command parent)
+        => parent.Subcommands.SelectMany(child => AllCommands(child).Prepend(child));
 
     public static Verbosity GetVerbosity(ParseResult parse)
         => parse.GetValue(Quiet) ? Verbosity.Quiet
