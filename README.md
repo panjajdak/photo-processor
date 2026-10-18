@@ -84,6 +84,7 @@ photoprocessor <command> [arguments] [options]
 |---|---|---|
 | `-n`, `--dry-run` | `rename`, `undo` | Show what would happen without changing any file. |
 | `--copy` | `rename` | Copy instead of move, leaving the input folder untouched. |
+| `-r`, `--recursive` | `rename` | Also take files from subfolders of the input folder; the output folder stays flat. |
 | `-c`, `--config <file>` | all | Use another config file. |
 | `-v`, `--verbose` | all | List every file renamed, restored or skipped, with full error details. |
 | `-q`, `--quiet` | all | Print only the summary and errors. |
@@ -94,11 +95,14 @@ photoprocessor <command> [arguments] [options]
 photoprocessor rename D:\Camera --dry-run        # preview, in place
 photoprocessor rename D:\Camera D:\Photos        # rename and move
 photoprocessor rename D:\Camera D:\Photos --copy # rename copies, keep originals
+photoprocessor rename E:\DCIM D:\Photos -r       # include subfolders, output stays flat
 photoprocessor undo D:\Photos                    # revert the last run into D:\Photos
 photoprocessor history D:\Photos
 ```
 
-Results go to stdout; warnings, errors and the progress line go to stderr (colored on a terminal unless `NO_COLOR` is set). Subfolders are not processed.
+Results go to stdout; warnings, errors and the progress line go to stderr (colored on a terminal unless `NO_COLOR` is set).
+
+**Subfolders** are only processed with `--recursive` (`-r`), which is handy for a camera's or phone's `DCIM` folder. Their files all end up directly in the output folder, which stays flat (in the input folder itself when no output is given); `undo` moves them back into their original subfolders. Dot-folders (`.thumbnails`, `.trashed`, `.photoprocessor`), hidden or system folders, and the output folder (when it is inside the input folder) are skipped. Without `--recursive`, subfolders that contain files are listed in a warning, so nothing is skipped unnoticed.
 
 ### Exit codes
 
@@ -210,7 +214,7 @@ Recognized file names include `IMG_20210408_194108`, `PXL_20210408_194108123`, `
 
 ### Groups
 
-Files in the same folder that share a name are renamed together: `DSC_0042.NEF` + `DSC_0042.JPG`, `IMG_1234.HEIC` + `IMG_1234.MOV` + `IMG_1234.AAE`, and sidecars in both styles (`photo.xmp` and `photo.dng.xmp`). The member with the most trustworthy date names the group, so an unreadable RAW takes its date and device from its JPEG. A group containing any photo uses the photo prefix, so a Live Photo video sorts next to its photo. A sidecar without a matching photo or video is skipped.
+Files in the same folder that share a name are renamed together (with `--recursive`, files in different subfolders never form a group): `DSC_0042.NEF` + `DSC_0042.JPG`, `IMG_1234.HEIC` + `IMG_1234.MOV` + `IMG_1234.AAE`, and sidecars in both styles (`photo.xmp` and `photo.dng.xmp`). The member with the most trustworthy date names the group, so an unreadable RAW takes its date and device from its JPEG. A group containing any photo uses the photo prefix, so a Live Photo video sorts next to its photo. A sidecar without a matching photo or video is skipped.
 
 ### Collisions, duplicates and re-runs
 
@@ -278,7 +282,7 @@ flowchart TD
 
 | Stage | Input → output | Responsibility |
 |---|---|---|
-| `FileDiscovery` | folder → file paths | Keeps photos, videos and sidecars; reports the rest. |
+| `FileDiscovery` | folder → file paths | Lists the input folder (and, with `--recursive`, its subfolders), keeps photos, videos and sidecars, and reports the rest and any unscanned subfolders. |
 | `MediaGrouping` | paths → `MediaGroup`s | Groups files by shared name (`MediaTypes.GetStem`); reports sidecars without a media file. |
 | `GroupAnalysis` | `MediaGroup` → `AnalyzedGroup` | Reads metadata (`IMetadataReader`), resolves each file's date (`DateResolver`), picks the best-dated member, resolves the device (`DeviceNameResolver`) and builds the `NameContext` for the template. |
 | `RenamePlanning` | `AnalyzedGroup`s → `CommandBatch`es | Leaves already-named groups alone, orders groups by shooting time, skips duplicates, finds the first counter where the whole group fits, and emits one batch of commands per group. Simulates the output folder with `OutputFolderState` so names planned earlier in the run count as taken. |

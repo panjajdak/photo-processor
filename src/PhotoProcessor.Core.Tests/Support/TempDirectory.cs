@@ -13,6 +13,7 @@ internal sealed class TempDirectory : IDisposable
     public string Write(string fileName, byte[] content, DateTime? lastWriteTime = null)
     {
         var path = System.IO.Path.Combine(Path, fileName);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, content);
         if (lastWriteTime != null)
         {

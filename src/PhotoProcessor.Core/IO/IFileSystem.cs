@@ -7,6 +7,10 @@ internal interface IFileSystem
 {
     IReadOnlyList<string> GetFiles(string directory);
 
+    IReadOnlyList<string> GetDirectories(string directory);
+
+    bool IsHidden(string path);
+
     bool FileExists(string path);
 
     bool DirectoryExists(string path);

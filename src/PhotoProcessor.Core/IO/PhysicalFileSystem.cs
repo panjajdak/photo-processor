@@ -10,6 +10,10 @@ internal sealed class PhysicalFileSystem : IFileSystem
 
     public IReadOnlyList<string> GetFiles(string directory) => Directory.GetFiles(directory);
 
+    public IReadOnlyList<string> GetDirectories(string directory) => Directory.GetDirectories(directory);
+
+    public bool IsHidden(string path) => (File.GetAttributes(path) & (FileAttributes.Hidden | FileAttributes.System)) != 0;
+
     public bool FileExists(string path) => File.Exists(path);
 
     public bool DirectoryExists(string path) => Directory.Exists(path);

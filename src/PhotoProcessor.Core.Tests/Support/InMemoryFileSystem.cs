@@ -7,6 +7,7 @@ internal sealed class InMemoryFileSystem : IFileSystem
 {
     private readonly Dictionary<string, StoredFile> files = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> directories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> hidden = new(StringComparer.OrdinalIgnoreCase);
 
     public int Writes { get; private set; }
 
@@ -14,7 +15,7 @@ internal sealed class InMemoryFileSystem : IFileSystem
 
     public void Add(string path, byte[] content, DateTime? lastWriteTime = null)
     {
-        directories.Add(Path.GetDirectoryName(path)!);
+        AddDirectoryWithParents(Path.GetDirectoryName(path)!);
         files[path] = new StoredFile(content, lastWriteTime ?? new DateTime(2030, 1, 1, 12, 0, 0));
     }
 
@@ -28,6 +29,11 @@ internal sealed class InMemoryFileSystem : IFileSystem
     public IReadOnlyList<string> GetFiles(string directory)
         => files.Keys.Where(p => string.Equals(Path.GetDirectoryName(p), directory, StringComparison.OrdinalIgnoreCase)).ToList();
 
+    public IReadOnlyList<string> GetDirectories(string directory)
+        => directories.Where(d => string.Equals(Path.GetDirectoryName(d), directory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    public bool IsHidden(string path) => hidden.Contains(path);
+
     public bool FileExists(string path) => files.ContainsKey(path);
 
     public bool DirectoryExists(string path) => directories.Contains(path);
@@ -35,7 +41,18 @@ internal sealed class InMemoryFileSystem : IFileSystem
     public void CreateDirectory(string path, bool hidden = false)
     {
         Writes++;
-        directories.Add(path);
+        AddDirectoryWithParents(path);
+        if (hidden)
+        {
+            this.hidden.Add(path);
+        }
+    }
+
+    private void AddDirectoryWithParents(string path)
+    {
+        for (var current = path; current != null && directories.Add(current); current = Path.GetDirectoryName(current))
+        {
+        }
     }
 
     public void Move(string from, string to)

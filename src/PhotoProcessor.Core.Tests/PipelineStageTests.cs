@@ -30,10 +30,83 @@ public class PipelineStageTests
         fileSystem.Add($@"{In}\a.xmp", "a");
         fileSystem.Add($@"{In}\notes.txt", "n");
 
-        var files = new FileDiscovery(fileSystem, observer).Discover(In);
+        var files = new FileDiscovery(fileSystem, observer).Discover(In, Out, recursive: false);
 
         Assert.Equal([$@"{In}\a.xmp", $@"{In}\b.jpg"], files);
         Assert.Equal([new UnsupportedSkipped($@"{In}\notes.txt")], observer.Events);
+    }
+
+    [Fact]
+    public void Discovery_Recursive_TakesFilesFromAllSubfolders()
+    {
+        fileSystem.Add($@"{In}\top.jpg", "t");
+        fileSystem.Add($@"{In}\DCIM\Camera\a.jpg", "a");
+        fileSystem.Add($@"{In}\DCIM\100GOPRO\GOPR0001.JPG", "g");
+
+        var files = new FileDiscovery(fileSystem, observer).Discover(In, Out, recursive: true);
+
+        Assert.Equal([$@"{In}\top.jpg", $@"{In}\DCIM\100GOPRO\GOPR0001.JPG", $@"{In}\DCIM\Camera\a.jpg"], files);
+        Assert.Empty(observer.Events);
+    }
+
+    [Fact]
+    public void Discovery_Recursive_SkipsDotFoldersHiddenFoldersAndTheOutputFolder()
+    {
+        var output = $@"{In}\sorted";
+        fileSystem.Add($@"{In}\a.jpg", "a");
+        fileSystem.Add($@"{In}\.thumbnails\t.jpg", "t");
+        fileSystem.Add($@"{In}\.photoprocessor\runs\run.jsonl", "{}");
+        fileSystem.CreateDirectory($@"{In}\System Volume Information", hidden: true);
+        fileSystem.Add($@"{In}\System Volume Information\x.jpg", "x");
+        fileSystem.Add($@"{output}\IMG 2021-04-08 19.41.08.jpg", "already sorted");
+
+        var files = new FileDiscovery(fileSystem, observer).Discover(In, output, recursive: true);
+
+        Assert.Equal([$@"{In}\a.jpg"], files);
+    }
+
+    [Fact]
+    public void Discovery_NotRecursive_ReportsSubfoldersWithFiles()
+    {
+        fileSystem.Add($@"{In}\a.jpg", "a");
+        fileSystem.Add($@"{In}\DCIM\Camera\b.jpg", "b");
+        fileSystem.CreateDirectory($@"{In}\empty");
+        fileSystem.Add($@"{In}\.trashed\c.jpg", "c");
+
+        var files = new FileDiscovery(fileSystem, observer).Discover(In, Out, recursive: false);
+
+        Assert.Equal([$@"{In}\a.jpg"], files);
+        Assert.Equal([$@"{In}\DCIM"], observer.Of<SubfoldersSkipped>().Single().Folders);
+    }
+
+    [Fact]
+    public void Grouping_KeepsSameNamedFilesInDifferentFoldersApart()
+    {
+        string[] files = [$@"{In}\phone\IMG_1.jpg", $@"{In}\camera\IMG_1.jpg", $@"{In}\camera\IMG_1.xmp"];
+
+        var groups = new MediaGrouping(observer).Group(files);
+
+        Assert.Equal(2, groups.Count);
+        Assert.Equal([1, 2], groups.Select(g => g.Paths.Count).Order());
+    }
+
+    [Fact]
+    public void Runner_Recursive_FlattensSubfoldersIntoTheOutputFolder()
+    {
+        fileSystem.Add($@"{In}\phone\IMG_1.jpg", "phone photo");
+        fileSystem.Add($@"{In}\camera\IMG_1.jpg", "camera photo");
+        fileSystem.Add($@"{In}\camera\IMG_1.xmp", "edits");
+        fileSystem.Add($@"{In}\copy\IMG_1.jpg", "phone photo");
+        var reader = new FakeMetadataReader()
+            .With($@"{In}\phone\IMG_1.jpg", new MediaMetadata { DateTimeOriginal = Taken, SubSecondOriginal = "1" })
+            .With($@"{In}\camera\IMG_1.jpg", new MediaMetadata { DateTimeOriginal = Taken, SubSecondOriginal = "2" })
+            .With($@"{In}\copy\IMG_1.jpg", new MediaMetadata { DateTimeOriginal = Taken, SubSecondOriginal = "1" });
+
+        var result = new RenameRunner(config, observer, reader, fileSystem).Run(In, Out, new RunOptions(Recursive: true));
+
+        Assert.Equal(new ProcessingSummary(3, 0, 1, 0, 0), result.Summary);
+        Assert.Equal(["IMG 2021-04-08 19.41.08 1.jpg", "IMG 2021-04-08 19.41.08 1.xmp", "IMG 2021-04-08 19.41.08.jpg"], fileSystem.FileNames(Out));
+        Assert.Equal("phone photo"u8.ToArray(), fileSystem.Content($@"{Out}\IMG 2021-04-08 19.41.08.jpg"));
     }
 
     [Fact]
@@ -182,7 +255,7 @@ public class PipelineStageTests
         fileSystem.Add($@"{In}\IMG_1.jpg", "photo");
         var reader = new FakeMetadataReader().With($@"{In}\IMG_1.jpg", new MediaMetadata { DateTimeOriginal = Taken });
 
-        var result = new RenameRunner(config, observer, reader, fileSystem).Run(In, Out, dryRun: true);
+        var result = new RenameRunner(config, observer, reader, fileSystem).Run(In, Out, new RunOptions(DryRun: true));
 
         Assert.Equal(0, fileSystem.Writes);
         Assert.Equal(1, result.Summary.Renamed);

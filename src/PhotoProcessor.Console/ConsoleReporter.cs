@@ -45,6 +45,9 @@ internal sealed class ConsoleReporter : IProcessingObserver
             case UnsupportedSkipped e:
                 Warning($"Skipped (unsupported type): {e.Path}");
                 break;
+            case SubfoldersSkipped e:
+                Warning($"{e.Folders.Count} subfolder(s) with files were not scanned; use --recursive to include them: {string.Join(", ", e.Folders.Select(Path.GetFileName))}");
+                break;
             case OrphanSidecarSkipped e:
                 Warning($"Skipped (sidecar without media file): {e.Path}");
                 break;

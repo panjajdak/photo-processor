@@ -29,19 +29,25 @@ internal static class RenameCommand
 
         var dryRun = CommonOptions.DryRun("Show what would be renamed without changing any file.");
 
+        var recursive = new Option<bool>("--recursive", "-r")
+        {
+            Description = "Also take files from subfolders of the input folder; they all end up directly in the output folder.",
+        };
+
         var command = new Command("rename", "Rename the photos and videos in a folder, optionally moving or copying them to another folder.")
         {
             input,
             output,
             copy,
             dryRun,
+            recursive,
         };
 
         command.SetAction(parse => Run(
             parse.GetValue(input)!,
             parse.GetValue(output),
             parse.GetValue(copy),
-            parse.GetValue(dryRun),
+            new RunOptions(parse.GetValue(dryRun), parse.GetValue(recursive)),
             parse,
             cancellationToken));
 
@@ -52,7 +58,8 @@ internal static class RenameCommand
                 ($@"{app} rename D:\Camera", @"Rename the files in D:\Camera in place"),
                 ($@"{app} rename D:\Camera D:\Photos", @"Move the renamed files to D:\Photos"),
                 ($@"{app} rename D:\Camera --dry-run", "Preview the new names without changing anything"),
-                ($@"{app} rename D:\Camera D:\Photos --copy", @"Copy instead of move, keeping D:\Camera as it is"))}
+                ($@"{app} rename D:\Camera D:\Photos --copy", @"Copy instead of move, keeping D:\Camera as it is"),
+                ($@"{app} rename E:\DCIM D:\Photos -r", @"Include all subfolders of E:\DCIM; files land directly in D:\Photos"))}
 
             How files are named:
               The date taken comes from EXIF/video metadata, else from the file name (IMG_20210408_194108.jpg),
@@ -74,7 +81,9 @@ internal static class RenameCommand
               Images:   {string.Join(", ", SupportedFormats.Images)}
               Videos:   {string.Join(", ", SupportedFormats.Videos)}
               Sidecars: {string.Join(", ", SupportedFormats.Sidecars)} (renamed together with their photo or video)
-              Subfolders are not processed.
+              Subfolders are only processed with --recursive; their files all end up directly in the output
+              folder (in the input folder itself when no output is given). Dot-folders (.thumbnails, .trashed),
+              hidden or system folders, and the output folder are skipped.
 
             {HelpSections.ExitCodeList(ExitCodes.All)}
             """);
@@ -82,7 +91,7 @@ internal static class RenameCommand
         return command;
     }
 
-    private static int Run(DirectoryInfo input, DirectoryInfo? output, bool copy, bool dryRun, ParseResult parse, CancellationToken cancellationToken)
+    private static int Run(DirectoryInfo input, DirectoryInfo? output, bool copy, RunOptions options, ParseResult parse, CancellationToken cancellationToken)
     {
         var reporter = new ConsoleReporter(CommonOptions.GetVerbosity(parse));
         try
@@ -107,7 +116,7 @@ internal static class RenameCommand
             }
 
             var runner = new RenameRunner(config, reporter);
-            var result = runner.Run(inputDirectory, outputDirectory, dryRun, cancellationToken);
+            var result = runner.Run(inputDirectory, outputDirectory, options, cancellationToken);
             reporter.ClearProgress();
 
             PrintSummary(reporter, result, copy: config.Options.CopyingEnabled);

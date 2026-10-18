@@ -22,6 +22,9 @@ public sealed record AlreadyNamed(string Path) : ProcessingEvent;
 /// <summary>A file was left alone because its type is not supported.</summary>
 public sealed record UnsupportedSkipped(string Path) : ProcessingEvent;
 
+/// <summary>Subfolders of the input folder that contain files but were not scanned, because the run is not recursive.</summary>
+public sealed record SubfoldersSkipped(IReadOnlyList<string> Folders) : ProcessingEvent;
+
 /// <summary>A sidecar was left alone because no photo or video shares its name.</summary>
 public sealed record OrphanSidecarSkipped(string Path) : ProcessingEvent;
 

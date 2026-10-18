@@ -36,8 +36,10 @@ public sealed class RenameRunner
     }
 
     /// <summary>Renames, moves or copies the files of the input folder into the output folder.</summary>
-    public ProcessingResult Run(string inputDirectory, string outputDirectory, bool dryRun = false, CancellationToken cancellationToken = default)
+    public ProcessingResult Run(string inputDirectory, string outputDirectory, RunOptions? options = null, CancellationToken cancellationToken = default)
     {
+        options ??= new RunOptions();
+        var dryRun = options.DryRun;
         inputDirectory = Path.GetFullPath(inputDirectory);
         outputDirectory = Path.GetFullPath(outputDirectory);
 
@@ -45,7 +47,7 @@ public sealed class RenameRunner
         var events = new CompositeObserver(counter, observer);
         var copy = config.Options.CopyingEnabled;
 
-        var files = new FileDiscovery(fileSystem, events).Discover(inputDirectory);
+        var files = new FileDiscovery(fileSystem, events).Discover(inputDirectory, outputDirectory, options.Recursive);
         var groups = new MediaGrouping(events).Group(files);
         var analyzed = new GroupAnalysis(config, metadataReader, fileSystem, events).Analyze(groups, cancellationToken);
         var batches = new RenamePlanning(template, fileSystem, events, copy).Plan(analyzed, outputDirectory, cancellationToken);

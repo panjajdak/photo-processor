@@ -348,6 +348,35 @@ public sealed class RunFeatureTests : IDisposable
     }
 
     [Fact]
+    public void Recursive_FlattensIntoOutput_AndUndoRestoresTheSubfolders()
+    {
+        input.Write(@"DCIM\Camera\IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+        input.Write(@"DCIM\100GOPRO\GOPR0001.JPG", TestMedia.Jpeg(model: "SM-A415F", dateTimeOriginal: Taken.AddMinutes(5)));
+
+        var result = new RenameRunner(config, observer).Run(input.Path, output.Path, new RunOptions(Recursive: true));
+
+        Assert.Equal(["IMG 2021-04-08 19.41.08.jpg", "IMG 2021-04-08 19.46.08 A41.jpg"], output.FileNames());
+
+        new Undoer(observer).Undo(result.JournalPath!);
+
+        Assert.True(File.Exists(Path.Combine(input.Path, @"DCIM\Camera\IMG_1.jpg")));
+        Assert.True(File.Exists(Path.Combine(input.Path, @"DCIM\100GOPRO\GOPR0001.JPG")));
+        Assert.Empty(output.FileNames());
+    }
+
+    [Fact]
+    public void NotRecursive_ReportsSubfoldersItDidNotScan()
+    {
+        input.Write("IMG_1.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+        input.Write(@"DCIM\Camera\IMG_2.jpg", TestMedia.Jpeg(dateTimeOriginal: Taken));
+
+        var result = Process();
+
+        Assert.Equal(1, result.Summary.Renamed);
+        Assert.Equal([Path.Combine(input.Path, "DCIM")], observer.Of<SubfoldersSkipped>().Single().Folders);
+    }
+
+    [Fact]
     public void RunThatChangesNothing_WritesNoJournal()
     {
         input.Write("notes.txt", [1]);
@@ -374,5 +403,5 @@ public sealed class RunFeatureTests : IDisposable
     }
 
     private ProcessingResult Process(bool dryRun = false, string? outputDirectory = null)
-        => new RenameRunner(config, observer).Run(input.Path, outputDirectory ?? output.Path, dryRun);
+        => new RenameRunner(config, observer).Run(input.Path, outputDirectory ?? output.Path, new RunOptions(DryRun: dryRun));
 }

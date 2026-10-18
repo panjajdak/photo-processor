@@ -34,6 +34,7 @@ internal sealed class RenamePlanning(FileNameTemplate template, IFileSystem file
             .OrderBy(g => g.Context.Date)
             .ThenBy(g => g.SubSecondSortKey, StringComparer.Ordinal)
             .ThenBy(g => g.Stem, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(g => g.Directory, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var batches = new List<CommandBatch>();
